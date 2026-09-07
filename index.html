@@ -338,9 +338,58 @@
   .add-oficial input { flex: 1; }
 
   footer.app { max-width: 960px; margin: 0 auto; padding: 0 var(--sp-5) var(--sp-6); color: var(--ink-faint); font-size: 12px; }
+
+  /* Login screen */
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    padding: var(--sp-5);
+  }
+  #loginScreen .login-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: var(--sp-6); width: 100%; max-width: 380px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.06);
+  }
+  #loginScreen h2 { margin: 0 0 var(--sp-2); font-size: 20px; }
+  #loginScreen p.sub { margin: 0 0 var(--sp-5); color: var(--ink-faint); font-size: 13px; }
+  #loginScreen .field { display: block; margin-bottom: var(--sp-3); }
+  #loginScreen .field label { display: block; font-size: 12px; color: var(--ink-faint); margin-bottom: 4px; }
+  #loginScreen .field input { width: 100%; }
+  #loginScreen .login-error {
+    color: #b00020; font-size: 13px; margin-top: var(--sp-2); min-height: 18px;
+  }
+  #loginScreen .btn { width: 100%; margin-top: var(--sp-2); }
+  #appShell { display: none; } /* hidden until login succeeds */
+  #btnLogout {
+    background: transparent; border: 1px solid var(--line);
+    color: var(--ink-faint); padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; cursor: pointer;
+  }
+  #btnLogout:hover { color: var(--ink); border-color: var(--ink-faint); }
 </style>
 </head>
 <body>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>Sondalis — Diárias</h2>
+    <p class="sub">Entra com as tuas credenciais para continuar.</p>
+    <div class="field">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="nome@sondalis.pt">
+    </div>
+    <div class="field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn accent" id="btnLogin">Entrar</button>
+  </div>
+</div>
+
+<!-- ========== APP (só visível após login) ========== -->
+<div id="appShell">
 <header class="app">
   <div class="header-inner">
     <div class="brand">
@@ -350,7 +399,9 @@
         <p class="sub">Diárias &amp; Refeições</p>
       </div>
     </div>
-    <div class="header-meta" id="headerMeta"></div>
+    <div class="header-meta" id="headerMeta">
+      <button id="btnLogout" title="Terminar sessão">Sair</button>
+    </div>
   </div>
   <nav class="tabs" id="tabs">
     <button data-tab="calcular" class="active">Calcular</button>
@@ -514,6 +565,7 @@
 <footer class="app">
   Sondalis
 </footer>
+</div> <!-- /#appShell -->
 
 <script type="module">
 "use strict";
@@ -1672,7 +1724,87 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
 const stateRef = ref(db, 'app_state');
+
+// ========== AUTENTICAÇÃO ==========
+const loginScreen = document.getElementById('loginScreen');
+const appShell = document.getElementById('appShell');
+const loginEmail = document.getElementById('loginEmail');
+const loginPassword = document.getElementById('loginPassword');
+const loginError = document.getElementById('loginError');
+const btnLogin = document.getElementById('btnLogin');
+const btnLogout = document.getElementById('btnLogout');
+
+function showLogin() {
+  loginScreen.style.display = 'flex';
+  appShell.style.display = 'none';
+}
+function showApp() {
+  loginScreen.style.display = 'none';
+  appShell.style.display = 'block';
+  loginEmail.value = '';
+  loginPassword.value = '';
+  loginError.textContent = '';
+}
+
+// Traduz erros do Firebase para PT
+function traduzErroAuth(code) {
+  switch (code) {
+    case 'auth/invalid-email': return 'Email inválido.';
+    case 'auth/user-disabled': return 'Utilizador desativado.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential': return 'Email ou password incorretos.';
+    case 'auth/too-many-requests': return 'Demasiadas tentativas. Tenta mais tarde.';
+    case 'auth/network-request-failed': return 'Sem ligação à internet.';
+    default: return 'Erro ao entrar. Tenta novamente.';
+  }
+}
+
+async function fazerLogin() {
+  const email = loginEmail.value.trim();
+  const pass = loginPassword.value;
+  if (!email || !pass) {
+    loginError.textContent = 'Preenche email e password.';
+    return;
+  }
+  loginError.textContent = '';
+  btnLogin.disabled = true;
+  btnLogin.textContent = 'A entrar...';
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    // onAuthStateChanged trata do resto
+  } catch (err) {
+    loginError.textContent = traduzErroAuth(err.code);
+  } finally {
+    btnLogin.disabled = false;
+    btnLogin.textContent = 'Entrar';
+  }
+}
+
+btnLogin.addEventListener('click', fazerLogin);
+loginPassword.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') fazerLogin();
+});
+loginEmail.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') fazerLogin();
+});
+
+btnLogout.addEventListener('click', async () => {
+  if (confirm('Terminar sessão?')) {
+    await signOut(auth);
+  }
+});
+
+// Decide o que mostrar ao arrancar (e sempre que muda o estado)
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    showApp();
+  } else {
+    showLogin();
+  }
+});
 
 let isRemoteUpdate = false;
 
