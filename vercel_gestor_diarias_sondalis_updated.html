@@ -1657,6 +1657,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 // Firebase Integration
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, get, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDyjwD6ntoou7k_8oh2WsvCyBVgmmpxcww",
