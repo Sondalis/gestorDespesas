@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title> Diárias &amp; Refeições</title>
+<title>Diárias &amp; Refeições</title>
 <style>
   /* ---------- Tokens ---------- */
   :root {
@@ -137,12 +137,13 @@
   }
   label.checkbox-field input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--petrol); cursor: pointer; }
 
-  input[type=text], input[type=number], input[type=date], input[type=time], select {
+  input[type=text], input[type=number], input[type=date], input[type=time], select, textarea {
     width: 100%; padding: 10px 12px; font-family: var(--sans); font-size: 15px;
     color: var(--ink); background: var(--surface);
     border: 1px solid var(--line-strong); border-radius: var(--radius);
   }
-  input:focus, select:focus { outline: 2px solid var(--petrol); outline-offset: 1px; border-color: var(--petrol); }
+  textarea { resize: vertical; min-height: 60px; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--petrol); outline-offset: 1px; border-color: var(--petrol); }
   input[type=number] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
@@ -174,6 +175,7 @@
   .btn.danger { background: transparent; color: var(--warn); border-color: var(--warn); }
   .btn.danger:hover { background: var(--warn-tint); }
   .btn.small { padding: 6px 12px; font-size: 13px; }
+  .btn.icon-btn { padding: 6px 10px; font-size: 16px; line-height: 1; }
 
   .hint { font-size: 12.5px; color: var(--ink-faint); margin-top: calc(-1 * var(--sp-2)); margin-bottom: var(--sp-4); }
 
@@ -283,7 +285,7 @@
   /* Painel Interno de Gestão do Registo */
   .rec-body { padding: var(--sp-4); border-top: 1px solid var(--line); background: #fafbfc; }
   .rec-body label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--ink-soft); display: block; margin-bottom: 4px; }
-  .rec-body input[type=text], .rec-body input[type=date], .rec-body input[type=time], .rec-body select { padding: 6px 10px; font-size: 13.5px; }
+  .rec-body input[type=text], .rec-body input[type=date], .rec-body input[type=time], .rec-body select, .rec-body textarea { padding: 6px 10px; font-size: 13.5px; }
 
   .edit-colaborador-box {
     display: none;
@@ -338,16 +340,16 @@
   .add-oficial input { flex: 1; }
 
   footer.app { max-width: 960px; margin: 0 auto; padding: 0 var(--sp-5) var(--sp-6); color: var(--ink-faint); font-size: 12px; }
+
 </style>
 </head>
 <body>
+
 <header class="app">
   <div class="header-inner">
     <div class="brand">
-      <div class="mark">S</div>
       <div>
-        <h1></h1>
-        <p class="sub">Diárias &amp; Refeições</p>
+        <h1>Diárias &amp; Refeições</h1>
       </div>
     </div>
     <div class="header-meta" id="headerMeta"></div>
@@ -428,9 +430,9 @@
         </label>
       </div>
 
-      <label class="checkbox-field">
-        <input type="checkbox" id="entregueCaixa">
-        <span>Entregue da caixa</span>
+      <label class="field">
+        <span>Observações <span class="opt">(opcional)</span></span>
+        <textarea id="observacoes" rows="2" placeholder="Notas sobre esta viagem"></textarea>
       </label>
 
       <label class="checkbox-field">
@@ -512,7 +514,9 @@
 </main>
 
 <footer class="app">
+  Diárias &amp; Refeições
 </footer>
+
 
 <script type="module">
 "use strict";
@@ -830,7 +834,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       regressoHora: $('#regressoHora').value,
       entreguePor: $('#entreguePorSelect').value,
       dataEntregaDinheiro: $('#dataEntregaDinheiro').value,
-      entregueCaixa: $('#entregueCaixa').checked,
+      observacoes: $('#observacoes').value.trim(),
       incFimSemana: $('#incFimSemana').checked,
     };
   }
@@ -924,7 +928,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     $('#ajudanteAssoc').value = '';
     $('#obra').value = '';
     $('#entreguePorSelect').value = 'Carla';
-    $('#entregueCaixa').checked = false;
+    $('#observacoes').value = '';
     $('#incFimSemana').checked = false;
 
     ui.tipo = 'ajudante';
@@ -972,7 +976,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
       entreguePor: form.entreguePor,
       dataEntregaDinheiro: statusDestino === 'ativo' ? (form.dataEntregaDinheiro || form.saidaData || todayISO()) : '',
-      entregueCaixa: form.entregueCaixa || false,
+      recebidoPor: form.nome,
+      observacoes: form.observacoes || '',
       faturaEntregue: false,
 
       faturaEntregueA: '',
@@ -998,6 +1003,64 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     }
     const html = pendentes.map(recCard).join('');
     container.innerHTML = '<p class="section-title">Cálculos Pendentes (' + pendentes.length + ')</p><div class="user-content" style="padding:0; background:transparent;">' + html + '</div>';
+  }
+
+  function imprimirRecibo(r) {
+    const dataIda = fmtDate(r.saidaData);
+    const dataVolta = fmtDate(r.regressoEfetivoData || r.regressoData);
+    const dataRecebimento = r.dataEntregaDinheiro ? fmtDate(r.dataEntregaDinheiro) : fmtDate(todayISO());
+    const entreguePor = (r.entreguePor && r.entreguePor !== 'Pendente') ? r.entreguePor : '';
+    const recebidoPor = r.recebidoPor || r.nome || '';
+    const valorFinal = eur.format(r.totalGeral);
+    const observacoes = r.observacoes || '';
+
+    const html =
+      '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8">' +
+      '<title>Recibo — ' + esc(recebidoPor) + '</title>' +
+      '<style>' +
+      '  @page { size: A5; margin: 15mm; }' +
+      '  body { font-family: "Segoe UI", system-ui, Arial, sans-serif; color: #17211f; margin: 0; padding: 0; font-size: 13px; line-height: 1.5; }' +
+      '  .recibo { max-width: 100%; }' +
+      '  h1 { font-size: 18px; margin: 0 0 4px; color: #0f4c4a; }' +
+      '  .sub { color: #8a958f; font-size: 11px; margin: 0 0 20px; }' +
+      '  .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #d8ddd6; }' +
+      '  .row .label { color: #4a5854; }' +
+      '  .row .value { font-weight: 600; text-align: right; }' +
+      '  .valor-final { margin-top: 16px; padding: 12px; background: #e3edeb; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }' +
+      '  .valor-final .label { font-weight: 700; color: #0a3634; }' +
+      '  .valor-final .value { font-size: 20px; font-weight: 700; font-family: "Consolas", monospace; color: #0a3634; }' +
+      '  .obs { margin-top: 16px; padding: 10px; background: #f5f6f3; border-left: 3px solid #b5622f; font-size: 12px; white-space: pre-wrap; }' +
+      '  .obs-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #8a958f; margin-bottom: 4px; }' +
+      '  .assinatura { margin-top: 40px; padding-top: 40px; border-top: 1px solid #17211f; text-align: center; font-size: 11px; color: #4a5854; }' +
+      '  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }' +
+      '</style></head><body>' +
+      '<div class="recibo">' +
+        '<h1>Recibo de Diária</h1>' +
+        '<p class="sub">' + (r.obra ? esc(r.obra) + ' · ' : '') + 'Impresso em ' + esc(fmtDate(todayISO())) + '</p>' +
+
+        '<div class="row"><span class="label">Nome</span><span class="value">' + esc(recebidoPor) + '</span></div>' +
+        '<div class="row"><span class="label">Data de ida</span><span class="value">' + esc(dataIda) + '</span></div>' +
+        '<div class="row"><span class="label">Data de volta</span><span class="value">' + esc(dataVolta) + '</span></div>' +
+        '<div class="row"><span class="label">Data de recebimento</span><span class="value">' + esc(dataRecebimento) + '</span></div>' +
+        '<div class="row"><span class="label">Entregue por</span><span class="value">' + esc(entreguePor || '—') + '</span></div>' +
+
+        '<div class="valor-final"><span class="label">Valor Final</span><span class="value">' + esc(valorFinal) + '</span></div>' +
+
+        (observacoes ? '<div class="obs"><div class="obs-label">Observações</div>' + esc(observacoes) + '</div>' : '') +
+
+        '<div class="assinatura">Assinatura de ' + esc(recebidoPor) + '</div>' +
+      '</div>' +
+      '<script>window.onload = function() { setTimeout(function() { window.print(); }, 100); };<\/script>' +
+      '</body></html>';
+
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Ativa os pop-ups para poder imprimir.');
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   }
 
   /* ============================================================
@@ -1205,6 +1268,10 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '<div class="adjust-row highlight"><span>Valor Final Ajustado:</span><span class="money">' + valorFinalDisplay + '</span></div>' +
       '</div>';
 
+    const btnImprimir = (r.status === 'pendente')
+      ? '<button class="btn ghost small icon-btn" data-role="imprimir-recibo" title="Imprimir recibo" aria-label="Imprimir recibo">🖨️</button>'
+      : '';
+
     const btnDinheiroEntregue = (r.status === 'pendente')
       ? '<button class="btn success small" data-role="dinheiro-entregue">Dinheiro Entregue</button>'
       : '';
@@ -1250,12 +1317,17 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '<span class="readonly-info">' + esc(r.dataEntregaDinheiro ? fmtDate(r.dataEntregaDinheiro) : '—') + '</span>'
     );
 
-    const entregueCaixaCheckboxHtml = (r.status === 'pendente') ? (
-      '<label class="checkbox-field" style="margin:0;">' +
-        '<input type="checkbox" class="check" data-role="entregueCaixa"' + (r.entregueCaixa ? ' checked' : '') + '>' +
-        '<span>Entregue da Caixa</span>' +
-      '</label>'
-    ) : '';
+    const recebidoPorHtml = (r.status === 'pendente') ? (
+      '<input type="text" data-role="recebidoPorPendente" value="' + esc(r.recebidoPor || r.nome) + '">'
+    ) : (
+      '<span class="readonly-info">' + esc(r.recebidoPor || r.nome || '—') + '</span>'
+    );
+
+    const observacoesHtml = (r.status === 'pendente') ? (
+      '<textarea data-role="observacoesPendente" rows="2" placeholder="Notas sobre esta viagem">' + esc(r.observacoes || '') + '</textarea>'
+    ) : (
+      (r.observacoes ? '<span class="readonly-info" style="white-space:pre-wrap;">' + esc(r.observacoes) + '</span>' : '')
+    );
 
     const despesaEntregueCheckboxHtml = (r.status === 'pendente') ? '' : (
       '<label class="checkbox-field" style="margin:0;">' +
@@ -1314,14 +1386,25 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
                 entreguePorHtml +
               '</div>' +
               '<div>' +
+                '<label>Recebido Por</label>' +
+                recebidoPorHtml +
+              '</div>' +
+              '<div>' +
                 '<label>Data Entrega Dinheiro</label>' +
                 dataEntregaDinheiroHtml +
               '</div>' +
-              '<div style="display:flex; flex-direction:column; justify-content:center; gap:6px;">' +
-                entregueCaixaCheckboxHtml +
-                despesaEntregueCheckboxHtml +
-              '</div>' +
             '</div>' +
+
+            ((r.status === 'pendente' || r.observacoes) ? (
+              '<div style="margin-top: var(--sp-3);">' +
+                '<label>Observações</label>' +
+                observacoesHtml +
+              '</div>'
+            ) : '') +
+
+            (despesaEntregueCheckboxHtml ? (
+              '<div style="margin-top: var(--sp-3);">' + despesaEntregueCheckboxHtml + '</div>'
+            ) : '') +
 
             (r.status !== 'pendente' ? (
               '<div class="fatura-box' + (r.faturaEntregue ? ' visible' : '') + '">' +
@@ -1343,6 +1426,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '<div class="rec-foot">' +
           '<div style="display:flex; gap:var(--sp-2); align-items:center; flex-wrap:wrap;">' +
             '<button class="btn ghost small" data-role="abrir-editar-colaborador">Editar colaborador</button>' +
+            btnImprimir +
             btnDinheiroEntregue +
             btnTerminar +
           '</div>' +
@@ -1386,7 +1470,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
       if (role === 'entreguePorSelectPendente') registo.entreguePor = e.target.value;
       else if (role === 'dataEntregaDinheiroPendente') registo.dataEntregaDinheiro = e.target.value;
-      else if (role === 'entregueCaixa') registo.entregueCaixa = e.target.checked;
+      else if (role === 'recebidoPorPendente') registo.recebidoPor = e.target.value;
+      else if (role === 'observacoesPendente') registo.observacoes = e.target.value;
       else if (role === 'faturaEntregue') registo.faturaEntregue = e.target.checked;
       else if (role === 'faturaEntregueA') registo.faturaEntregueA = e.target.value;
       else if (role === 'dataEntregaFatura') registo.dataEntregaFatura = e.target.value;
@@ -1471,6 +1556,24 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           store.save();
           renderPendentes();
           renderRegistos();
+        }
+        return;
+      }
+
+      const imprimir = e.target.closest('button[data-role="imprimir-recibo"]');
+      if (imprimir) {
+        if (!rec) return;
+        const registo = store.findRegisto(rec.dataset.rid);
+        if (registo) {
+          // Sync form fields into registo before printing
+          const selectEntregue = rec.querySelector('[data-role="entreguePorSelectPendente"]');
+          const inputRecebido = rec.querySelector('[data-role="recebidoPorPendente"]');
+          const inputData = rec.querySelector('[data-role="dataEntregaDinheiroPendente"]');
+          if (selectEntregue) registo.entreguePor = selectEntregue.value;
+          if (inputRecebido) registo.recebidoPor = inputRecebido.value.trim();
+          if (inputData) registo.dataEntregaDinheiro = inputData.value;
+          store.save();
+          imprimirRecibo(registo);
         }
         return;
       }
@@ -1650,7 +1753,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     setTimeout(() => { if (el.firstChild) el.innerHTML = ''; }, 4000);
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
 
 // Firebase Integration
@@ -1670,7 +1777,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const stateRef = ref(db, 'app_state/sdl_9k2xq7');
+const stateRef = ref(db, 'app_state');
 
 let isRemoteUpdate = false;
 
