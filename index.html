@@ -341,6 +341,56 @@
 
   footer.app { max-width: 960px; margin: 0 auto; padding: 0 var(--sp-5) var(--sp-6); color: var(--ink-faint); font-size: 12px; }
 
+  /* ---------- Linha de registo concluído (clicável) ---------- */
+  .rec.concluido { cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+  .rec.concluido:hover { background: var(--surface-2); border-color: var(--petrol); }
+  .rec.concluido .ver-detalhe-hint { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+
+  /* ---------- Modal de detalhe (apenas leitura) ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 900;
+    background: rgba(16, 32, 30, .55);
+    display: flex; align-items: center; justify-content: center;
+    padding: var(--sp-4); animation: fade .15s ease;
+  }
+  .modal-overlay[hidden] { display: none; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--line-strong);
+    border-radius: var(--radius); box-shadow: 0 20px 60px rgba(16, 32, 30, .32);
+    width: 100%; max-width: 660px; max-height: 90vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-head {
+    padding: var(--sp-4); background: linear-gradient(135deg, var(--petrol-deep), var(--petrol));
+    color: #eef4f2; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
+    border-bottom: 3px solid var(--copper);
+  }
+  .modal-head .modal-title { font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .modal-head .modal-sub { font-size: 12px; color: #9dc0bb; letter-spacing: .06em; margin-top: 2px; }
+  .modal-close {
+    appearance: none; background: transparent; border: none; color: #cfe0dc;
+    font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px; flex: 0 0 auto;
+  }
+  .modal-close:hover { color: #fff; }
+  .modal-body { padding: var(--sp-4); overflow-y: auto; background: #fafbfc; }
+  .modal-foot {
+    padding: var(--sp-3) var(--sp-4); background: var(--surface); border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  }
+  .readonly-note { font-size: 12px; color: var(--ink-faint); }
+
+  .det-block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+  .det-block:last-child { margin-bottom: 0; }
+  .det-block h4 { margin: 0 0 var(--sp-3); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--petrol); font-weight: 700; }
+  .det-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-4); padding: 5px 0; font-size: 13.5px; border-bottom: 1px dashed var(--line); }
+  .det-row:last-child { border-bottom: none; }
+  .det-row .k { color: var(--ink-soft); }
+  .det-row .v { font-weight: 600; text-align: right; }
+  .det-row.total { font-weight: 700; font-size: 15px; border-bottom: none; margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line-strong); }
+  .det-obs { white-space: pre-wrap; font-size: 13.5px; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--copper); padding: var(--sp-3); border-radius: 0 var(--radius) var(--radius) 0; }
+  .det-block .breakdown { margin-bottom: 0; }
+  .det-block .day-row { grid-template-columns: 130px 1fr; font-size: 13px; }
+
 </style>
 </head>
 <body>
@@ -516,6 +566,24 @@
 <footer class="app">
   Diárias &amp; Refeições
 </footer>
+
+<!-- ========== DETALHE DE VIAGEM (APENAS LEITURA) ========== -->
+<div class="modal-overlay" id="detalheOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detalheTitulo">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="detalheTitulo"></div>
+        <div class="modal-sub" id="detalheSub"></div>
+      </div>
+      <button class="modal-close" id="btnFecharDetalhe" aria-label="Fechar detalhe">&times;</button>
+    </div>
+    <div class="modal-body" id="detalheBody"></div>
+    <div class="modal-foot">
+      <span class="readonly-note">🔒 Apenas leitura — registo concluído, não pode ser alterado.</span>
+      <button class="btn ghost small" data-role="fechar-detalhe">Fechar</button>
+    </div>
+  </div>
+</div>
 
 
 <script type="module">
@@ -1231,9 +1299,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         : eur.format(r.totalGeral);
 
       return (
-        '<div class="rec" data-rid="' + r.id + '" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--sp-2);">' +
-          '<div style="font-size: 14px; font-weight: 600; color: var(--ink);">' +
-            esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegressoAtual)) +
+        '<div class="rec concluido" data-rid="' + r.id + '" data-role="ver-detalhes" title="Ver detalhes da viagem" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--sp-2);">' +
+          '<div>' +
+            '<div style="font-size: 14px; font-weight: 600; color: var(--ink);">' +
+              esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegressoAtual)) +
+            '</div>' +
+            '<div class="ver-detalhe-hint">Ver detalhes</div>' +
           '</div>' +
           '<div style="display: flex; align-items: center; gap: var(--sp-4);">' +
             '<span class="money" style="font-size: 15px; font-weight: 700; color: var(--petrol-deep);">' + valorTotalConcluido + '</span>' +
@@ -1436,7 +1507,158 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     );
   }
 
+  /* ============================================================
+   *  DETALHE DE VIAGEM CONCLUÍDA (APENAS LEITURA)
+   * ============================================================ */
+  function detRow(k, v, cls) {
+    return '<div class="det-row' + (cls ? ' ' + cls : '') + '">' +
+             '<span class="k">' + k + '</span>' +
+             '<span class="v">' + v + '</span>' +
+           '</div>';
+  }
+
+  function detalheViagemHtml(r) {
+    const dataRegresso = r.regressoEfetivoData || r.regressoData;
+    const horaRegresso = r.regressoEfetivoHora || r.regressoHora;
+
+    const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, horaRegresso, r.incFimSemana);
+    const totals = computeTotals(plan, store.state.values, r.tipo);
+    const arr = totals.arredondamento || getArredondamento(totals.totalBruto);
+    const diffSign = arr.diff > 0 ? '+' : '';
+    const diferenca = totals.totalGeral - r.totalOriginal;
+
+    const saidaInicial = r.saidaDataInicial || r.saidaData;
+    const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
+    const regressoInicial = r.regressoDataInicial || r.regressoData;
+    const horaRegressoInicial = r.regressoHoraInicial || r.regressoHora;
+    const houveAlteracaoDatas = (
+      r.saidaData !== saidaInicial || r.saidaHora !== horaSaidaInicial ||
+      dataRegresso !== regressoInicial || horaRegresso !== horaRegressoInicial
+    );
+
+    /* --- Período --- */
+    const periodoHtml =
+      '<div class="det-block">' +
+        '<h4>Período da viagem</h4>' +
+        detRow('Partida', esc(fmtDate(r.saidaData)) + ' &middot; ' + esc(r.saidaHora || '—')) +
+        detRow('Regresso efetivo', esc(fmtDate(dataRegresso)) + ' &middot; ' + esc(horaRegresso || '—')) +
+        (houveAlteracaoDatas
+          ? detRow('Previsto inicialmente',
+              esc(fmtDate(saidaInicial)) + ' ' + esc(horaSaidaInicial || '') + ' → ' +
+              esc(fmtDate(regressoInicial)) + ' ' + esc(horaRegressoInicial || ''))
+          : '') +
+        detRow('Fins de semana incluídos', r.incFimSemana ? 'Sim' : 'Não') +
+      '</div>';
+
+    /* --- Refeições por dia --- */
+    const dayRows = plan.map((day) => {
+      const chips = MEALS.map((m) => (
+        '<span class="chip' + (day.meals.includes(m.key) ? ' on' : '') + '">' + m.label + '</span>'
+      )).join('');
+      const none = day.meals.length === 0
+        ? '<span class="chip none">' + (day.isWeekend ? 'fim de semana' : 'sem refeições') + '</span>'
+        : '';
+      return (
+        '<div class="day-row' + (day.isWeekend ? ' weekend' : '') + '">' +
+          '<div class="day-label">' +
+            '<span class="day-date">' + esc(fmtDate(day.date)) + '</span>' +
+            '<span class="day-kind">' + KIND_LABEL[day.kind] + '</span>' +
+          '</div>' +
+          '<div class="meals">' + chips + none + '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    const refeicoesHtml =
+      '<div class="det-block">' +
+        '<h4>Refeições por dia</h4>' +
+        (dayRows ? '<div class="breakdown">' + dayRows + '</div>' : '<div class="empty">Sem dias a apresentar.</div>') +
+      '</div>';
+
+    /* --- Valores --- */
+    const labelDiferenca = diferenca < 0 ? 'Valor devolvido' : 'Valor adicional pago';
+    const valoresHtml =
+      '<div class="det-block">' +
+        '<h4>Valores</h4>' +
+        detRow('Valor base (Ajudante)', '<span class="money">' + eur.format(totals.totalBase) + '</span>') +
+        (r.tipo === 'oficial'
+          ? detRow('Adicional Oficial', '<span class="money" style="color:var(--copper)">' + eur.format(totals.totalDelta) + '</span>')
+          : '') +
+        detRow('Arredondamento (' + arr.original + '€ → ' + arr.arredondado + '€)', '<span class="money">' + diffSign + arr.diff + '€</span>') +
+        detRow('Valor entregue (adiantado)', '<span class="money">' + eur.format(r.totalOriginal) + '</span>') +
+        detRow(labelDiferenca, '<span class="money' + (diferenca < 0 ? ' devolver' : '') + '">' + eur.format(Math.abs(diferenca)) + '</span>') +
+        detRow('Valor final', '<span class="money">' + eur.format(totals.totalGeral) + '</span>', 'total') +
+      '</div>';
+
+    /* --- Entrega / conclusão --- */
+    const entregaHtml =
+      '<div class="det-block">' +
+        '<h4>Entrega &amp; conclusão</h4>' +
+        detRow('Entregue por', esc(r.entreguePor && r.entreguePor !== 'Pendente' ? r.entreguePor : '—')) +
+        detRow('Recebido por', esc(r.recebidoPor || r.nome || '—')) +
+        detRow('Data entrega dinheiro', esc(r.dataEntregaDinheiro ? fmtDate(r.dataEntregaDinheiro) : '—')) +
+        detRow('Despesa entregue a', esc(r.faturaEntregueA || '—')) +
+        detRow('Data entrega da despesa', esc(r.dataEntregaFatura ? fmtDate(r.dataEntregaFatura) : '—')) +
+        detRow('Data de conclusão', esc(r.dataConclusao ? fmtDate(r.dataConclusao) : '—')) +
+      '</div>';
+
+    const obsHtml = r.observacoes
+      ? '<div class="det-block"><h4>Observações</h4><div class="det-obs">' + esc(r.observacoes) + '</div></div>'
+      : '';
+
+    return periodoHtml + refeicoesHtml + valoresHtml + entregaHtml + obsHtml;
+  }
+
+  function abrirDetalheViagem(id) {
+    const r = store.findRegisto(id);
+    if (!r) return;
+
+    const tagClass = r.tipo === 'oficial' ? 'ofic' : 'ajud';
+    const tagText = r.tipo === 'oficial' ? 'Oficial' : 'Ajudante';
+
+    $('#detalheTitulo').innerHTML =
+      esc(r.nome) + ' <span class="tag ' + tagClass + '">' + tagText + '</span>';
+
+    const subBits = [];
+    if (r.obra) subBits.push('Obra: ' + esc(r.obra));
+    if (r.ajudanteAssoc) subBits.push('Ajudante: ' + esc(r.ajudanteAssoc));
+    subBits.push(esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(r.regressoEfetivoData || r.regressoData)));
+    $('#detalheSub').innerHTML = subBits.join(' &middot; ');
+
+    $('#detalheBody').innerHTML = detalheViagemHtml(r);
+    $('#detalheBody').scrollTop = 0;
+    $('#detalheOverlay').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function fecharDetalheViagem() {
+    const ov = $('#detalheOverlay');
+    if (!ov || ov.hidden) return;
+    ov.hidden = true;
+    $('#detalheBody').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  function wireDetalheViagem() {
+    const ov = $('#detalheOverlay');
+    if (!ov || ov.dataset.wired) return;
+    ov.dataset.wired = '1';
+
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov ||
+          e.target.closest('#btnFecharDetalhe') ||
+          e.target.closest('[data-role="fechar-detalhe"]')) {
+        fecharDetalheViagem();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') fecharDetalheViagem();
+    });
+  }
+
   function wireRegistos() {
+    wireDetalheViagem();
     const mainContainer = $('main');
     if (mainContainer.dataset.wired) return;
     mainContainer.dataset.wired = '1';
@@ -1492,6 +1714,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           renderPendentes();
           renderRegistos();
         }
+        return;
+      }
+
+      const verDetalhes = e.target.closest('[data-role="ver-detalhes"]');
+      if (verDetalhes && !e.target.closest('button')) {
+        abrirDetalheViagem(verDetalhes.dataset.rid);
         return;
       }
 
