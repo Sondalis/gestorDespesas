@@ -366,6 +366,20 @@
   details.viagem[open] .viagem-chevron { transform: rotate(180deg); }
   details.viagem > .rec { border: none; border-radius: 0; }
 
+  /* Seleção de viagens para impressão */
+  .sel-toolbar { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+  .sel-mes { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--petrol); font-weight: 700; margin: var(--sp-3) 0 6px; }
+  .sel-mes:first-of-type { margin-top: 0; }
+  .sel-row {
+    display: flex; align-items: center; gap: var(--sp-3); padding: 8px 12px; margin-bottom: 6px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
+  }
+  .sel-row:hover { border-color: var(--petrol); background: var(--surface-2); }
+  .sel-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--petrol); flex: 0 0 auto; cursor: pointer; }
+  .sel-row .sel-datas { flex: 1; font-weight: 600; font-size: 13.5px; }
+  .sel-row .sel-estado { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+  .sel-row .money { font-weight: 700; color: var(--petrol-deep); }
+
   /* Ações do grupo mensal */
   .month-summary .month-right { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
   .btn-print-mes { flex: 0 0 auto; }
@@ -600,6 +614,27 @@
 <footer class="app">
   Diárias &amp; Refeições
 </footer>
+
+<!-- ========== SELEÇÃO DE VIAGENS PARA IMPRESSÃO ========== -->
+<div class="modal-overlay" id="selecaoOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="selecaoTitulo">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="selecaoTitulo"></div>
+        <div class="modal-sub">Escolhe as viagens a incluir na impressão</div>
+      </div>
+      <button class="modal-close" id="btnFecharSelecao" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="modal-body" id="selecaoBody"></div>
+    <div class="modal-foot">
+      <span class="readonly-note" id="selecaoContagem"></span>
+      <span style="display:flex; gap:var(--sp-2);">
+        <button class="btn ghost small" data-role="fechar-selecao">Cancelar</button>
+        <button class="btn accent small" id="btnImprimirSelecao">🖨️ Imprimir</button>
+      </span>
+    </div>
+  </div>
+</div>
 
 <!-- ========== DETALHE DE VIAGEM (APENAS LEITURA) ========== -->
 <div class="modal-overlay" id="detalheOverlay" hidden>
@@ -1212,16 +1247,131 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     w.document.close();
   }
 
-  function imprimirMesRegistos(nome, mesKey, ids) {
+  let selecaoNome = '';
+
+  function abrirSelecaoImpressao(nome, idsPreSelecionados) {
+    selecaoNome = nome;
+    const preSel = new Set(idsPreSelecionados || []);
+
+    const viagens = store.state.registos
+      .filter(r => r.status !== 'pendente' && r.nome.toUpperCase() === String(nome).toUpperCase())
+      .sort((a, b) => b.saidaData.localeCompare(a.saidaData));
+
+    if (!viagens.length) {
+      alert('Não há viagens para imprimir.');
+      return;
+    }
+
+    const meses = {};
+    for (const r of viagens) {
+      const mKey = getMonthKey(r.saidaData);
+      (meses[mKey] = meses[mKey] || []).push(r);
+    }
+
+    const corpo = Object.keys(meses).sort().reverse().map((mKey) => {
+      const linhas = meses[mKey].map((r) => {
+        const dataRegresso = r.regressoEfetivoData || r.regressoData;
+        const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
+        const total = computeTotals(plan, store.state.values, r.tipo).totalGeral;
+        const estado = r.concluido ? 'Concluída' : (r.faturaEntregue ? 'Despesa entregue' : 'Por entregar');
+        return (
+          '<label class="sel-row">' +
+            '<input type="checkbox" data-rid="' + r.id + '"' + (preSel.has(r.id) ? ' checked' : '') + '>' +
+            '<span class="sel-datas">' + esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegresso)) + '</span>' +
+            '<span class="sel-estado">' + estado + '</span>' +
+            '<span class="money">' + esc(eur.format(total)) + '</span>' +
+          '</label>'
+        );
+      }).join('');
+      return '<div class="sel-mes">' + esc(getMonthLabel(mKey)) + '</div>' + linhas;
+    }).join('');
+
+    $('#selecaoTitulo').textContent = nome;
+    $('#selecaoBody').innerHTML =
+      '<div class="sel-toolbar">' +
+        '<button class="btn ghost small" data-role="sel-todas">Selecionar todas</button>' +
+        '<button class="btn ghost small" data-role="sel-nenhuma">Limpar seleção</button>' +
+      '</div>' + corpo;
+
+    atualizarContagemSelecao();
+    $('#selecaoBody').scrollTop = 0;
+    $('#selecaoOverlay').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function fecharSelecaoImpressao() {
+    const ov = $('#selecaoOverlay');
+    if (!ov || ov.hidden) return;
+    ov.hidden = true;
+    $('#selecaoBody').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  function idsSelecionados() {
+    return $$('#selecaoBody input[type="checkbox"]:checked').map(cb => cb.dataset.rid);
+  }
+
+  function atualizarContagemSelecao() {
+    const n = idsSelecionados().length;
+    const total = $$('#selecaoBody input[type="checkbox"]').length;
+    $('#selecaoContagem').textContent = n + ' de ' + total + ' viagem(ns) selecionada(s)';
+    $('#btnImprimirSelecao').disabled = (n === 0);
+  }
+
+  function wireSelecaoImpressao() {
+    const ov = $('#selecaoOverlay');
+    if (!ov || ov.dataset.wired) return;
+    ov.dataset.wired = '1';
+
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('#btnFecharSelecao') || e.target.closest('[data-role="fechar-selecao"]')) {
+        fecharSelecaoImpressao();
+        return;
+      }
+      if (e.target.closest('[data-role="sel-todas"]')) {
+        $$('#selecaoBody input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+        atualizarContagemSelecao();
+        return;
+      }
+      if (e.target.closest('[data-role="sel-nenhuma"]')) {
+        $$('#selecaoBody input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+        atualizarContagemSelecao();
+        return;
+      }
+      if (e.target.closest('#btnImprimirSelecao')) {
+        const ids = idsSelecionados();
+        if (!ids.length) return;
+        fecharSelecaoImpressao();
+        imprimirViagensSelecionadas(selecaoNome, ids);
+      }
+    });
+
+    ov.addEventListener('change', (e) => {
+      if (e.target.matches('input[type="checkbox"]')) atualizarContagemSelecao();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') fecharSelecaoImpressao();
+    });
+  }
+
+  function imprimirViagensSelecionadas(nome, ids) {
     const lista = ids
       .map(id => store.findRegisto(id))
       .filter(Boolean)
       .sort((a, b) => a.saidaData.localeCompare(b.saidaData));
 
     if (!lista.length) {
-      alert('Não há viagens para imprimir neste mês.');
+      alert('Não há viagens para imprimir neste intervalo.');
       return;
     }
+
+    const dataInicio = lista[0].saidaData;
+    const dataFim = lista.reduce((max, r) => {
+      const d = r.regressoEfetivoData || r.regressoData;
+      return d > max ? d : max;
+    }, lista[0].regressoEfetivoData || lista[0].regressoData);
+    const periodoLabel = fmtDate(dataInicio) + ' a ' + fmtDate(dataFim);
 
     let somaBase = 0, somaDelta = 0, somaTotal = 0, somaEntregue = 0;
     const temOficial = lista.some(r => r.tipo === 'oficial');
@@ -1271,7 +1421,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     const html =
       '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8">' +
-      '<title>' + esc(nome) + ' — ' + esc(getMonthLabel(mesKey)) + '</title>' +
+      '<title>' + esc(nome) + ' — ' + esc(periodoLabel) + '</title>' +
       '<style>' +
       '  @page { size: A4 portrait; margin: 12mm; }' +
       '  * { box-sizing: border-box; }' +
@@ -1291,12 +1441,10 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '  .ate { color: #8a958f; font-size: 9px; }' +
       '  .obs { margin-top: 1mm; padding-left: 2mm; border-left: 2px solid #b5622f; white-space: pre-wrap; }' +
       '  tfoot td { border-top: 2px solid #17211f; padding: 2.5mm 1.5mm; font-weight: 700; font-size: 12px; }' +
-      '  .assinaturas { margin-top: 14mm; display: flex; gap: 12mm; page-break-inside: avoid; }' +
-      '  .assinaturas div { flex: 1; border-top: 1px solid #17211f; padding-top: 1.5mm; font-size: 9px; color: #4a5854; text-align: center; }' +
       '  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }' +
       '</style></head><body>' +
       '<div class="cab">' +
-        '<div><h1>' + esc(nome) + '</h1><div class="mes">' + esc(getMonthLabel(mesKey)) + ' &middot; ' + lista.length + ' viagem(ns)</div></div>' +
+        '<div><h1>' + esc(nome) + '</h1><div class="mes">' + esc(periodoLabel) + ' &middot; ' + lista.length + ' viagem(ns)</div></div>' +
         '<div class="meta">Impresso em ' + esc(fmtDate(todayISO())) + '</div>' +
       '</div>' +
       '<table>' +
@@ -1307,14 +1455,13 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '</tr></thead>' +
         '<tbody>' + linhas + '</tbody>' +
         '<tfoot><tr>' +
-          '<td colspan="2">Total do mês</td>' +
+          '<td colspan="2">Total do período</td>' +
           '<td class="n">' + esc(eur.format(somaBase)) + '</td>' +
           (temOficial ? '<td class="n">' + esc(eur.format(somaDelta)) + '</td>' : '') +
           '<td class="n">' + esc(eur.format(somaTotal)) + '</td>' +
           '<td class="c" style="font-weight:400;font-size:9px;">Adiantado: ' + esc(eur.format(somaEntregue)) + '</td>' +
         '</tr></tfoot>' +
       '</table>' +
-      '<div class="assinaturas"><div>Colaborador</div><div>Responsável</div></div>' +
       '<script>window.onload = function() { setTimeout(function() { window.print(); }, 150); };<\/script>' +
       '</body></html>';
 
@@ -1445,9 +1592,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
                   '<span class="month-right">' +
                     '<span class="money">Base: ' + eur.format(mBase) + deltaBadge + ' | Total: ' + eur.format(totalComArredondamento) + '</span>' +
                     '<button class="btn ghost small btn-print-mes" data-role="imprimir-mes"' +
-                      ' data-nome="' + esc(g.nome) + '" data-mes="' + esc(mKey) + '"' +
+                      ' data-nome="' + esc(g.nome) + '"' +
                       ' data-rids="' + mList.map(x => x.id).join(',') + '"' +
-                      ' title="Imprimir viagens deste mês">🖨️</button>' +
+                      ' title="Escolher viagens para imprimir">🖨️</button>' +
                   '</span>' +
                 '</summary>' +
                 '<div class="month-content">' + cards + '</div>' +
@@ -1888,6 +2035,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
   function wireRegistos() {
     wireDetalheViagem();
+    wireSelecaoImpressao();
     const mainContainer = $('main');
     if (mainContainer.dataset.wired) return;
     mainContainer.dataset.wired = '1';
@@ -1953,7 +2101,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         e.preventDefault();
         e.stopPropagation();
         const ids = (imprimirMes.dataset.rids || '').split(',').filter(Boolean);
-        imprimirMesRegistos(imprimirMes.dataset.nome, imprimirMes.dataset.mes, ids);
+        abrirSelecaoImpressao(imprimirMes.dataset.nome, ids);
         return;
       }
 
