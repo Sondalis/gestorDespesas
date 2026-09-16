@@ -907,8 +907,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const t = todayISO();
     $('#saidaData').value = t;
     $('#regressoData').value = t;
-    $('#saidaHora').value = '07:00';
-    $('#regressoHora').value = '18:00';
+    $('#saidaHora').value = '06:00';
+    $('#regressoHora').value = '19:00';
+    if ($('#entreguePorSelect')) $('#entreguePorSelect').value = 'Pendente';
     if ($('#dataEntregaDinheiro')) $('#dataEntregaDinheiro').value = t;
   }
 
@@ -1064,7 +1065,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     if ($('#nomeOficial').options.length > 0) $('#nomeOficial').selectedIndex = 0;
     $('#ajudanteAssoc').value = '';
     $('#obra').value = '';
-    $('#entreguePorSelect').value = 'Carla';
+    $('#entreguePorSelect').value = 'Pendente';
     $('#observacoes').value = '';
     $('#incFimSemana').checked = false;
 
