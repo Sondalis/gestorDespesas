@@ -334,6 +334,13 @@
   .oficiais-list li { display: flex; align-items: center; gap: var(--sp-3); padding: 8px 12px; border-top: 1px solid var(--line); }
   .oficiais-list li:first-child { border-top: none; }
   .oficiais-list li .nome { flex: 1; font-size: 14px; }
+  .oficiais-list li .ofic-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; user-select: none; }
+  .oficiais-list li .ofic-toggle input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--petrol); cursor: pointer; }
+
+  .ajudante-hint:empty { display: none; }
+  .ajudante-hint { margin-top: var(--sp-2); padding: 8px 12px; background: var(--petrol-tint); border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 13.5px; color: var(--ink); display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .ajudante-hint strong { color: var(--petrol-deep); }
+  .ajudante-hint .btn.small { padding: 4px 12px; font-size: 12.5px; }
   .add-oficial { display: flex; gap: var(--sp-2); }
   .add-oficial input { flex: 1; }
 

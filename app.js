@@ -160,6 +160,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       this.state = {
         values: (raw && raw.values) || clone(DEFAULT_VALUES),
         oficiais: (raw && raw.oficiais) || DEFAULT_OFICIAIS.slice(),
+        oficiaisAjudantes: (raw && Array.isArray(raw.oficiaisAjudantes)) ? raw.oficiaisAjudantes : [],
         registos: registosCarregados,
       };
       window.store = store;
@@ -191,6 +192,31 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     }
   };
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function normalizeName(s) {
+    return String(s || '').trim().toLowerCase();
+  }
+
+  function firstWord(s) {
+    return normalizeName(s).split(/\s+/)[0] || '';
+  }
+
+  function findOverlappingRegisto(nome, saidaData, saidaHora, regressoData, regressoHora, excludeId) {
+    const key = normalizeName(nome);
+    if (!key || !saidaData || !regressoData) return null;
+    const newStart = saidaData + 'T' + (saidaHora || '00:00');
+    const newEnd = regressoData + 'T' + (regressoHora || '23:59');
+    return store.state.registos.find(r => {
+      if (r.id === excludeId) return false;
+      const names = [r.nome, r.recebidoPor, r.ajudanteAssoc].filter(Boolean).map(normalizeName);
+      if (!names.includes(key)) return false;
+      const rStart = r.saidaData + 'T' + (r.saidaHora || '00:00');
+      const rEndData = r.regressoEfetivoData || r.regressoData;
+      const rEndHora = r.regressoEfetivoHora || r.regressoHora || '23:59';
+      const rEnd = rEndData + 'T' + rEndHora;
+      return newStart < rEnd && rStart < newEnd;
+    }) || null;
+  }
 
   const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' });
   const dateFmt = new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -282,6 +308,38 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     });
     $('#btnCalcular').addEventListener('click', onCalcular);
     $('#btnGuardarRegisto').addEventListener('click', onGuardarRegisto);
+
+    const dismissedSuggestions = new Set();
+    $('#nomeAjudante').addEventListener('input', () => {
+      const raw = $('#nomeAjudante').value.trim();
+      const typedKey = normalizeName(raw);
+      const typedFirst = firstWord(raw);
+      const hint = $('#ajudanteHint');
+      if (!hint) return;
+      if (!typedFirst || dismissedSuggestions.has(typedKey)) { hint.innerHTML = ''; return; }
+      const candidatos = (store.state.oficiaisAjudantes || []).filter((n) => {
+        return firstWord(n) === typedFirst && normalizeName(n) !== typedKey;
+      });
+      if (candidatos.length !== 1) { hint.innerHTML = ''; return; }
+      const full = candidatos[0];
+      hint.innerHTML =
+        '<span>É o </span><strong>' + esc(full) + '</strong>?' +
+        '<button type="button" class="btn small" data-role="ajudante-sim">Sim</button>' +
+        '<button type="button" class="btn ghost small" data-role="ajudante-nao">Não</button>';
+      hint.dataset.full = full;
+      hint.dataset.typed = typedKey;
+    });
+    $('#ajudanteHint').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-role]');
+      if (!btn) return;
+      const hint = $('#ajudanteHint');
+      if (btn.dataset.role === 'ajudante-sim' && hint.dataset.full) {
+        $('#nomeAjudante').value = hint.dataset.full;
+      } else if (btn.dataset.role === 'ajudante-nao' && hint.dataset.typed) {
+        dismissedSuggestions.add(hint.dataset.typed);
+      }
+      hint.innerHTML = '';
+    });
 
     $('#resultado').addEventListener('click', (e) => {
       const chipBtn = e.target.closest('.chip-btn');
@@ -426,6 +484,18 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     onCalcular();
     if (!ui.ultimoCalculo) return;
     const { form, totals } = ui.ultimoCalculo;
+
+    const conflito = findOverlappingRegisto(form.nome, form.saidaData, form.saidaHora, form.regressoData, form.regressoHora, null);
+    if (conflito) {
+      const inicio = fmtDate(conflito.saidaData) + ' ' + (conflito.saidaHora || '');
+      const fim = fmtDate(conflito.regressoEfetivoData || conflito.regressoData) + ' ' + (conflito.regressoEfetivoHora || conflito.regressoHora || '');
+      $('#resultado').innerHTML =
+        '<div class="card"><div class="alert err">' +
+        esc(form.nome) + ' já tem uma viagem que se sobrepõe a este período (' + esc(inicio.trim()) + ' → ' + esc(fim.trim()) + '). Ajuste as datas ou apague a viagem anterior.' +
+        '</div></div>';
+      return;
+    }
+
     const isPendente = form.entreguePor === 'Pendente';
     const statusDestino = isPendente ? 'pendente' : 'ativo';
 
@@ -1619,13 +1689,26 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     $('#btnAddOficial').addEventListener('click', onAddOficial);
     $('#novoOficial').addEventListener('keydown', (e) => { if (e.key === 'Enter') onAddOficial(); });
     $('#oficiaisList').addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-nome]');
+      const btn = e.target.closest('button[data-role="remover"]');
       if (!btn) return;
       const nome = btn.dataset.nome;
       store.state.oficiais = store.state.oficiais.filter((n) => n !== nome);
+      store.state.oficiaisAjudantes = (store.state.oficiaisAjudantes || []).filter((n) => normalizeName(n) !== normalizeName(nome));
       store.save();
       renderOficiaisSelect();
       renderOficiaisList();
+    });
+
+    $('#oficiaisList').addEventListener('change', (e) => {
+      const cb = e.target.closest('input[data-role="toggle-ajudante"]');
+      if (!cb) return;
+      const nome = cb.dataset.nome;
+      const list = store.state.oficiaisAjudantes || (store.state.oficiaisAjudantes = []);
+      const key = normalizeName(nome);
+      const idx = list.findIndex((n) => normalizeName(n) === key);
+      if (cb.checked && idx === -1) list.push(nome);
+      if (!cb.checked && idx !== -1) list.splice(idx, 1);
+      store.save();
     });
 
     $('#btnApagarTudo').addEventListener('click', () => {
@@ -1633,6 +1716,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         store.state = {
           values: clone(DEFAULT_VALUES),
           oficiais: DEFAULT_OFICIAIS.slice(),
+          oficiaisAjudantes: [],
           registos: []
         };
         store.save();
@@ -1673,11 +1757,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
   function renderOficiaisList() {
     const list = store.state.oficiais.slice().sort((a, b) => a.localeCompare(b, 'pt'));
+    const ajudantesSet = new Set((store.state.oficiaisAjudantes || []).map(normalizeName));
     $('#oficiaisList').innerHTML = list.length
-      ? list.map((nome) => (
-          '<li><span class="nome">' + esc(nome) + '</span>' +
-          '<button class="btn danger small" data-nome="' + esc(nome) + '">Remover</button></li>'
-        )).join('')
+      ? list.map((nome) => {
+          const isAj = ajudantesSet.has(normalizeName(nome));
+          return '<li><span class="nome">' + esc(nome) + '</span>' +
+            '<label class="ofic-toggle"><input type="checkbox" data-role="toggle-ajudante" data-nome="' + esc(nome) + '"' + (isAj ? ' checked' : '') + '><span>Pode ser ajudante</span></label>' +
+            '<button class="btn danger small" data-role="remover" data-nome="' + esc(nome) + '">Remover</button></li>';
+        }).join('')
       : '<li><span class="nome" style="color:var(--ink-faint);font-style:italic">Sem oficiais na lista.</span></li>';
   }
 
@@ -1736,11 +1823,15 @@ const stateRef = ref(db, 'app_state/sdl_9k2xq7');
 let isRemoteUpdate = false;
 
 function sanitizeState(data) {
-  if (!data) return { values: {}, oficiais: [], registos: [] };
+  if (!data) return { values: {}, oficiais: [], oficiaisAjudantes: [], registos: [] };
 
   const oficiaisArray = Array.isArray(data.oficiais)
     ? data.oficiais
     : (data.oficiais ? Object.values(data.oficiais) : []);
+
+  const oficiaisAjudantesArray = Array.isArray(data.oficiaisAjudantes)
+    ? data.oficiaisAjudantes
+    : (data.oficiaisAjudantes ? Object.values(data.oficiaisAjudantes) : []);
 
   const registosArray = Array.isArray(data.registos)
     ? data.registos
@@ -1749,6 +1840,7 @@ function sanitizeState(data) {
   return {
     values: data.values || {},
     oficiais: oficiaisArray,
+    oficiaisAjudantes: oficiaisAjudantesArray,
     registos: registosArray
   };
 }
