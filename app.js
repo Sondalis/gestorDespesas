@@ -1139,7 +1139,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     ) : '';
 
     const entreguePorOptions = ['Carla', 'Esmeralda', 'Inês', 'Rodrigo'];
-    const currentEntregue = (r.entreguePor && r.entreguePor !== 'Pendente') ? r.entreguePor : 'Carla';
+    const currentEntregue = (r.entreguePor && r.entreguePor !== 'Pendente') ? r.entreguePor : 'Inês';
 
     const entreguePorHtml = (r.status === 'pendente') ? (
       '<select data-role="entreguePorSelectPendente">' +
@@ -1628,7 +1628,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           if (selectPendente) {
             registo.entreguePor = selectPendente.value;
           } else if (!registo.entreguePor || registo.entreguePor === 'Pendente') {
-            registo.entreguePor = 'Carla';
+            registo.entreguePor = 'Inês';
           }
           registo.dataEntregaDinheiro = dataVal;
           registo.status = 'ativo';
