@@ -590,7 +590,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const recebidoPor = r.recebidoPor || r.nome || '';
 
       const plan = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
-      const valorTotal = computeTotals(plan, store.state.values, r.tipo).totalGeral;
+      // Recibo assinado pelo trabalhador: mostra sempre o valor de ajudante,
+      // mesmo quando o registo é de oficial (o adicional oficial é entregue à parte).
+      const valorTotal = computeTotals(plan, store.state.values, 'ajudante').totalGeral;
 
       return (
         '<div class="mini">' +
