@@ -248,12 +248,6 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
   }
   function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-  function isArchived(registo) {
-    if (!registo.concluido) return false;
-    const dataRef = registo.dataConclusao || todayISO();
-    return calendarDaysInclusive(dataRef, todayISO()) - 1 > RETENTION_DAYS;
-  }
-
   const ui = { tipo: 'ajudante', ultimoCalculo: null, fecharGrupoNome: null, filtroInicio: '', filtroFim: '', filtroTipo: 'todos', viagensAbertas: new Set() };
 
   const $ = (sel) => document.querySelector(sel);
@@ -978,32 +972,29 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       (ui.filtroTipo === 'todos' || r.tipo === ui.filtroTipo)
     );
 
-    const ativos = filtrados.filter((r) => !r.concluido && !isArchived(r));
-    const naoAtivos = filtrados.filter((r) => r.concluido && !isArchived(r));
-    const arquivados = filtrados.filter((r) => isArchived(r));
+    const ativos = filtrados.filter((r) => !r.concluido);
+    const naoAtivos = filtrados.filter((r) => r.concluido);
+
+    const sectHd = (variant, titulo, count) =>
+      '<div class="sect ' + variant + '">' +
+        '<span class="title">' + titulo + '</span>' +
+        '<span class="count">· ' + count + '</span>' +
+        '<span class="rule"></span>' +
+      '</div>';
 
     const ativosHtml = ativos.length
       ? renderGroupedList(ativos, abertos)
       : '<div class="empty">Ainda não há registos ativos.</div>';
-    $('#registosAtivos').innerHTML =
-      '<p class="section-title">Despesas por Entregar (' + ativos.length + ')</p>' + ativosHtml;
+    $('#registosAtivos').innerHTML = sectHd('owed', 'Despesas por Entregar', ativos.length) + ativosHtml;
 
     if (naoAtivos.length) {
       $('#registosNaoAtivos').innerHTML =
-        '<p class="section-title">Despesas Entregues (' + naoAtivos.length + ')</p>' +
+        sectHd('done', 'Despesas Entregues', naoAtivos.length) +
         renderGroupedList(naoAtivos, abertos);
     } else {
       $('#registosNaoAtivos').innerHTML = '';
     }
 
-    if (arquivados.length) {
-      $('#registosArquivados').innerHTML =
-        '<p class="section-title">Arquivados — Concluídos há mais de ' + RETENTION_DAYS + ' dias (' + arquivados.length + ')</p>' +
-        renderGroupedList(arquivados, abertos) +
-        '<div style="margin-top:var(--sp-3)"><button class="btn danger" id="btnEliminarArquivados">Eliminar arquivados</button></div>';
-    } else {
-      $('#registosArquivados').innerHTML = '';
-    }
     wireRegistos();
   }
 
@@ -1730,13 +1721,6 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         return;
       }
 
-      if (e.target.id === 'btnEliminarArquivados') {
-        if (confirm('Eliminar definitivamente todos os registos arquivados?')) {
-          store.state.registos = store.state.registos.filter((r) => !isArchived(r));
-          store.save();
-          renderRegistos();
-        }
-      }
     });
   }
 
