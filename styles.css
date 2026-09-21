@@ -338,7 +338,7 @@
   .oficiais-list li .ofic-toggle input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--petrol); cursor: pointer; }
 
   .toast {
-    position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(8px);
+    position: fixed; left: 50%; top: 100px; transform: translateX(-50%) translateY(-8px);
     background: var(--ok-tint); color: var(--ok); border: 1px solid var(--ok);
     padding: 10px 18px; border-radius: 999px; font-size: 14px; font-weight: 600;
     box-shadow: 0 6px 18px rgba(47, 125, 79, .18);
