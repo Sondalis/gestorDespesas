@@ -551,13 +551,13 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       container.innerHTML = '<p class="section-title">Cálculos Pendentes (0)</p><div class="empty">Nenhum registo pendente.</div>';
       return;
     }
-    const html = renderGroupedList(pendentes, new Set(), { format: 'mini' });
+    const html = pendentes.map(recCard).join('');
     container.innerHTML =
       '<p class="section-title">' +
         '<span>Cálculos Pendentes (' + pendentes.length + ')</span>' +
         '<button class="btn accent small" id="btnImprimirTodosPendentes">🖨️ Imprimir todos (' + pendentes.length + ')</button>' +
       '</p>' +
-      html;
+      '<div class="user-content" style="padding:0; background:transparent;">' + html + '</div>';
   }
 
   function sincronizarCamposPendentesVisiveis() {
@@ -668,22 +668,58 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       alert('Não há cálculos pendentes para imprimir.');
       return;
     }
-    abrirImpressaoMiniRecibos(pendentes, 'Recibos Pendentes (' + pendentes.length + ')');
+    // Sincroniza os inputs visíveis do tab Pendentes antes de mostrar a validação,
+    // para que o modal reflita quem foi selecionado como "Entregue por" / "Recebido por".
+    sincronizarCamposPendentesVisiveis();
+
+    selecaoNome = '';
+    selecaoModo = 'mini-todos';
+
+    const ordenados = pendentes.slice().sort((a, b) => {
+      const na = (a.nome || '').localeCompare(b.nome || '', 'pt');
+      if (na !== 0) return na;
+      return a.saidaData.localeCompare(b.saidaData);
+    });
+
+    const linhas = ordenados.map((r) => {
+      const dataRegresso = r.regressoEfetivoData || r.regressoData;
+      const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
+      const total = computeTotals(plan, store.state.values, 'ajudante').totalGeral;
+      return (
+        '<label class="sel-row">' +
+          '<input type="checkbox" data-rid="' + r.id + '" checked>' +
+          '<span class="sel-datas"><strong>' + esc(r.nome) + '</strong> — ' + esc(fmtDate(r.saidaData)) + ' → ' + esc(fmtDate(dataRegresso)) + '</span>' +
+          '<span class="sel-estado">' + esc(r.entreguePor && r.entreguePor !== 'Pendente' ? r.entreguePor : '—') + '</span>' +
+          '<span class="money">' + esc(eur.format(total)) + '</span>' +
+        '</label>'
+      );
+    }).join('');
+
+    $('#selecaoTitulo').textContent = 'Confirmar impressão de recibos';
+    $('#selecaoBody').innerHTML =
+      '<div class="sel-toolbar">' +
+        '<button class="btn ghost small" data-role="sel-todas">Selecionar todos</button>' +
+        '<button class="btn ghost small" data-role="sel-nenhuma">Limpar seleção</button>' +
+      '</div>' +
+      '<div class="sel-mes">Confirme quais recibos quer imprimir</div>' +
+      linhas;
+
+    atualizarContagemSelecao();
+    $('#selecaoBody').scrollTop = 0;
+    $('#selecaoOverlay').hidden = false;
+    document.body.style.overflow = 'hidden';
   }
 
   let selecaoNome = '';
-  let selecaoFormato = 'report';
+  let selecaoModo = 'report'; // 'report' = per-employee monthly report; 'mini-todos' = validar antes de imprimir todos os pendentes
 
-  function abrirSelecaoImpressao(nome, idsPreSelecionados, formato) {
+  function abrirSelecaoImpressao(nome, idsPreSelecionados) {
     selecaoNome = nome;
-    selecaoFormato = formato === 'mini' ? 'mini' : 'report';
+    selecaoModo = 'report';
     const preSel = new Set(idsPreSelecionados || []);
 
-    const statusOk = selecaoFormato === 'mini'
-      ? (r) => r.status === 'pendente'
-      : (r) => r.status !== 'pendente';
     const viagens = store.state.registos
-      .filter(r => statusOk(r) && r.nome.toUpperCase() === String(nome).toUpperCase())
+      .filter(r => r.status !== 'pendente' && r.nome.toUpperCase() === String(nome).toUpperCase())
       .sort((a, b) => b.saidaData.localeCompare(a.saidaData));
 
     if (!viagens.length) {
@@ -771,9 +807,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         const ids = idsSelecionados();
         if (!ids.length) return;
         fecharSelecaoImpressao();
-        if (selecaoFormato === 'mini') {
+        if (selecaoModo === 'mini-todos') {
           const regs = ids.map(id => store.findRegisto(id)).filter(Boolean);
-          abrirImpressaoMiniRecibos(regs, 'Recibos — ' + selecaoNome + ' (' + regs.length + ')');
+          abrirImpressaoMiniRecibos(regs, 'Recibos Pendentes (' + regs.length + ')');
         } else {
           imprimirViagensSelecionadas(selecaoNome, ids);
         }
@@ -971,9 +1007,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     wireRegistos();
   }
 
-  function renderGroupedList(list, abertos = new Set(), opts = {}) {
-    const formato = opts.format === 'mini' ? 'mini' : 'report';
-    const openAll = !!opts.openAll;
+  function renderGroupedList(list, abertos = new Set()) {
     for (const r of list) {
       const dataRegresso = r.regressoEfetivoData || r.regressoData;
       const horaRegresso = r.regressoEfetivoHora || r.regressoHora;
@@ -992,7 +1026,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
       .map((g) => {
         const sumTotal = g.registos.reduce((acc, curr) => acc + curr.totalGeral, 0);
-        const isOpen = (openAll || abertos.has(g.nome.toUpperCase())) ? ' open' : '';
+        const isOpen = abertos.has(g.nome.toUpperCase()) ? ' open' : '';
 
         const primeiroRegisto = g.registos[0];
         const tagClass = primeiroRegisto.tipo === 'oficial' ? 'ofic' : 'ajud';
@@ -1030,7 +1064,6 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
                     '<button class="btn ghost small btn-print-mes" data-role="imprimir-mes"' +
                       ' data-nome="' + esc(g.nome) + '"' +
                       ' data-rids="' + mList.map(x => x.id).join(',') + '"' +
-                      ' data-format="' + formato + '"' +
                       ' title="Escolher viagens para imprimir">🖨️</button>' +
                   '</span>' +
                 '</summary>' +
@@ -1542,7 +1575,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         e.preventDefault();
         e.stopPropagation();
         const ids = (imprimirMes.dataset.rids || '').split(',').filter(Boolean);
-        abrirSelecaoImpressao(imprimirMes.dataset.nome, ids, imprimirMes.dataset.format);
+        abrirSelecaoImpressao(imprimirMes.dataset.nome, ids);
         return;
       }
 
