@@ -551,7 +551,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       container.innerHTML = '<p class="section-title">Cálculos Pendentes (0)</p><div class="empty">Nenhum registo pendente.</div>';
       return;
     }
-    const html = renderGroupedList(pendentes, new Set(), { format: 'mini', openAll: true });
+    const html = renderGroupedList(pendentes, new Set(), { format: 'mini' });
     container.innerHTML =
       '<p class="section-title">' +
         '<span>Cálculos Pendentes (' + pendentes.length + ')</span>' +
