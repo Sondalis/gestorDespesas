@@ -551,23 +551,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       container.innerHTML = '<p class="section-title">Cálculos Pendentes (0)</p><div class="empty">Nenhum registo pendente.</div>';
       return;
     }
-    const html = pendentes.map(recCard).join('');
+    const html = renderGroupedList(pendentes, new Set(), { format: 'mini', openAll: true });
     container.innerHTML =
       '<p class="section-title">' +
         '<span>Cálculos Pendentes (' + pendentes.length + ')</span>' +
         '<button class="btn accent small" id="btnImprimirTodosPendentes">🖨️ Imprimir todos (' + pendentes.length + ')</button>' +
       '</p>' +
-      '<div class="user-content" style="padding:0; background:transparent;">' + html + '</div>';
+      html;
   }
 
-  function imprimirTodosPendentes() {
-    const pendentes = store.state.registos.filter(r => r.status === 'pendente');
-    if (!pendentes.length) {
-      alert('Não há cálculos pendentes para imprimir.');
-      return;
-    }
-
-    // Sincroniza os campos visíveis dos cards antes de imprimir
+  function sincronizarCamposPendentesVisiveis() {
     $$('#registosPendentes .rec[data-rid]').forEach((rec) => {
       const registo = store.findRegisto(rec.dataset.rid);
       if (!registo) return;
@@ -579,7 +572,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       if (inputData) registo.dataEntregaDinheiro = inputData.value;
     });
     store.save();
+  }
 
+  function abrirImpressaoMiniRecibos(regs, tituloPagina) {
+    if (!regs.length) {
+      alert('Não há recibos para imprimir.');
+      return;
+    }
+    sincronizarCamposPendentesVisiveis();
     const POR_PAGINA = 8;
 
     const miniRecibo = (r) => {
@@ -617,14 +617,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     };
 
     const paginas = [];
-    for (let i = 0; i < pendentes.length; i += POR_PAGINA) {
-      const bloco = pendentes.slice(i, i + POR_PAGINA).map(miniRecibo).join('');
+    for (let i = 0; i < regs.length; i += POR_PAGINA) {
+      const bloco = regs.slice(i, i + POR_PAGINA).map(miniRecibo).join('');
       paginas.push('<div class="pagina">' + bloco + '</div>');
     }
 
     const html =
       '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8">' +
-      '<title>Recibos Pendentes (' + pendentes.length + ')</title>' +
+      '<title>' + esc(tituloPagina) + '</title>' +
       '<style>' +
       '  @page { size: A4 portrait; margin: 8mm; }' +
       '  * { box-sizing: border-box; }' +
@@ -662,14 +662,28 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     w.document.close();
   }
 
-  let selecaoNome = '';
+  function imprimirTodosPendentes() {
+    const pendentes = store.state.registos.filter(r => r.status === 'pendente');
+    if (!pendentes.length) {
+      alert('Não há cálculos pendentes para imprimir.');
+      return;
+    }
+    abrirImpressaoMiniRecibos(pendentes, 'Recibos Pendentes (' + pendentes.length + ')');
+  }
 
-  function abrirSelecaoImpressao(nome, idsPreSelecionados) {
+  let selecaoNome = '';
+  let selecaoFormato = 'report';
+
+  function abrirSelecaoImpressao(nome, idsPreSelecionados, formato) {
     selecaoNome = nome;
+    selecaoFormato = formato === 'mini' ? 'mini' : 'report';
     const preSel = new Set(idsPreSelecionados || []);
 
+    const statusOk = selecaoFormato === 'mini'
+      ? (r) => r.status === 'pendente'
+      : (r) => r.status !== 'pendente';
     const viagens = store.state.registos
-      .filter(r => r.status !== 'pendente' && r.nome.toUpperCase() === String(nome).toUpperCase())
+      .filter(r => statusOk(r) && r.nome.toUpperCase() === String(nome).toUpperCase())
       .sort((a, b) => b.saidaData.localeCompare(a.saidaData));
 
     if (!viagens.length) {
@@ -757,7 +771,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         const ids = idsSelecionados();
         if (!ids.length) return;
         fecharSelecaoImpressao();
-        imprimirViagensSelecionadas(selecaoNome, ids);
+        if (selecaoFormato === 'mini') {
+          const regs = ids.map(id => store.findRegisto(id)).filter(Boolean);
+          abrirImpressaoMiniRecibos(regs, 'Recibos — ' + selecaoNome + ' (' + regs.length + ')');
+        } else {
+          imprimirViagensSelecionadas(selecaoNome, ids);
+        }
       }
     });
 
@@ -952,7 +971,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     wireRegistos();
   }
 
-  function renderGroupedList(list, abertos = new Set()) {
+  function renderGroupedList(list, abertos = new Set(), opts = {}) {
+    const formato = opts.format === 'mini' ? 'mini' : 'report';
+    const openAll = !!opts.openAll;
     for (const r of list) {
       const dataRegresso = r.regressoEfetivoData || r.regressoData;
       const horaRegresso = r.regressoEfetivoHora || r.regressoHora;
@@ -971,7 +992,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
       .map((g) => {
         const sumTotal = g.registos.reduce((acc, curr) => acc + curr.totalGeral, 0);
-        const isOpen = abertos.has(g.nome.toUpperCase()) ? ' open' : '';
+        const isOpen = (openAll || abertos.has(g.nome.toUpperCase())) ? ' open' : '';
 
         const primeiroRegisto = g.registos[0];
         const tagClass = primeiroRegisto.tipo === 'oficial' ? 'ofic' : 'ajud';
@@ -1009,6 +1030,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
                     '<button class="btn ghost small btn-print-mes" data-role="imprimir-mes"' +
                       ' data-nome="' + esc(g.nome) + '"' +
                       ' data-rids="' + mList.map(x => x.id).join(',') + '"' +
+                      ' data-format="' + formato + '"' +
                       ' title="Escolher viagens para imprimir">🖨️</button>' +
                   '</span>' +
                 '</summary>' +
@@ -1283,10 +1305,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '</span>'
       : '';
 
+    const obsPreview = (r.observacoes && r.observacoes.trim())
+      ? '<div class="viagem-obs" title="' + esc(r.observacoes) + '">📝 ' + esc(r.observacoes) + '</div>'
+      : '';
+
     return (
       '<details class="viagem" data-rid="' + r.id + '"' + isOpen + '>' +
         '<summary class="viagem-summary">' +
-          '<span class="viagem-datas">' + esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegressoAtual)) + '</span>' +
+          '<span class="viagem-datas">' + esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegressoAtual)) + obsPreview + '</span>' +
           '<span class="viagem-vals">' +
             avisoAjuste +
             '<span class="money viagem-total">' + valorFinalDisplay + '</span>' +
@@ -1516,7 +1542,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         e.preventDefault();
         e.stopPropagation();
         const ids = (imprimirMes.dataset.rids || '').split(',').filter(Boolean);
-        abrirSelecaoImpressao(imprimirMes.dataset.nome, ids);
+        abrirSelecaoImpressao(imprimirMes.dataset.nome, ids, imprimirMes.dataset.format);
         return;
       }
 
@@ -1635,7 +1661,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           store.save();
           renderPendentes();
           renderRegistos();
-          goToTab('registos');
+          // Ficamos no tab Pendentes para agilizar a entrega em lote.
         }
         return;
       }
