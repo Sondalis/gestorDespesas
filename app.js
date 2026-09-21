@@ -1695,6 +1695,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           renderPendentes();
           renderRegistos();
           // Ficamos no tab Pendentes para agilizar a entrega em lote.
+          toast('Registado com sucesso');
         }
         return;
       }
@@ -1847,6 +1848,22 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     input.value = '';
     renderOficiaisSelect();
     renderOficiaisList();
+  }
+
+  let toastTimer = null;
+  function toast(msg, duration) {
+    const el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.hidden = false;
+    // Reflow so the transition applies from the hidden state.
+    void el.offsetWidth;
+    el.classList.add('visible');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.classList.remove('visible');
+      setTimeout(() => { el.hidden = true; }, 200);
+    }, duration || 900);
   }
 
   function flash(sel, type, msg) {
