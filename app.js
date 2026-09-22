@@ -532,7 +532,6 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     };
     store.addRegisto(registo);
     limparFormulario();
-    goToTab(statusDestino === 'pendente' ? 'pendentes' : 'registos');
     toast('Registado com sucesso');
   }
 
