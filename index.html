@@ -53,6 +53,7 @@
       <label class="field" id="fieldAjudanteAssoc" style="display:none">
         <span>Ajudante <span class="opt">(opcional)</span></span>
         <input type="text" id="ajudanteAssoc" placeholder="Ajudante que acompanha o oficial">
+        <div id="ajudanteAssocHint" class="ajudante-hint"></div>
       </label>
 
       <label class="field">
@@ -171,6 +172,26 @@
         <input type="text" id="novoOficial" placeholder="Nome do novo oficial">
         <button class="btn accent" id="btnAddOficial">Adicionar</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Fundir nomes</h2>
+      <p class="hint">Se o mesmo ajudante aparece com nomes diferentes (por typo), escolhe o nome errado, o nome correto e todos os registos passam a usar o nome correto.</p>
+      <div class="grid-2">
+        <label class="field" style="margin-bottom:0;">
+          <span>Nome a substituir</span>
+          <select id="fundirOrigem"></select>
+        </label>
+        <label class="field" style="margin-bottom:0;">
+          <span>Nome correto</span>
+          <select id="fundirDestino"></select>
+        </label>
+      </div>
+      <div style="margin-top:var(--sp-3); display:flex; align-items:center; gap:var(--sp-3); flex-wrap:wrap;">
+        <button class="btn danger" id="btnFundirNomes">Fundir</button>
+        <span id="fundirPreview" class="hint" style="margin:0;"></span>
+      </div>
+      <div id="fundirMsg"></div>
     </div>
 
     <div class="card">

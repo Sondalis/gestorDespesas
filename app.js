@@ -218,6 +218,63 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     }) || null;
   }
 
+  function levenshtein(a, b) {
+    a = String(a || ''); b = String(b || '');
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const m = a.length, n = b.length;
+    let prev = new Array(n + 1);
+    let curr = new Array(n + 1);
+    for (let j = 0; j <= n; j++) prev[j] = j;
+    for (let i = 1; i <= m; i++) {
+      curr[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+      }
+      const tmp = prev; prev = curr; curr = tmp;
+    }
+    return prev[n];
+  }
+
+  function getHistoricalNames() {
+    const map = new Map();
+    (store.state.registos || []).forEach(r => {
+      [r.nome, r.recebidoPor, r.ajudanteAssoc].forEach(n => {
+        if (!n) return;
+        const trimmed = String(n).trim();
+        if (!trimmed) return;
+        const key = normalizeName(trimmed);
+        if (!map.has(key)) map.set(key, trimmed);
+      });
+    });
+    return Array.from(map.values());
+  }
+
+  function findFuzzyName(typed) {
+    const key = normalizeName(typed);
+    if (!key || key.length < 3) return null;
+    const maxDist = key.length <= 4 ? 1 : 2;
+    let best = null;
+    let bestDist = maxDist + 1;
+    for (const cand of getHistoricalNames()) {
+      const nk = normalizeName(cand);
+      if (nk === key) return null;
+      const d = levenshtein(nk, key);
+      if (d < bestDist) { best = cand; bestDist = d; }
+    }
+    return best;
+  }
+
+  function countRegistosByName(nome) {
+    const key = normalizeName(nome);
+    if (!key) return 0;
+    return (store.state.registos || []).filter(r => {
+      return [r.nome, r.recebidoPor, r.ajudanteAssoc].some(n => n && normalizeName(n) === key);
+    }).length;
+  }
+
   const eur = new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' });
   const dateFmt = new Intl.DateTimeFormat('pt-PT', { weekday: 'short', day: '2-digit', month: '2-digit' });
   function fmtDate(iso) {
@@ -304,36 +361,52 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     $('#btnGuardarRegisto').addEventListener('click', onGuardarRegisto);
 
     const dismissedSuggestions = new Set();
-    $('#nomeAjudante').addEventListener('input', () => {
-      const raw = $('#nomeAjudante').value.trim();
+
+    function pickSuggestion(raw) {
       const typedKey = normalizeName(raw);
       const typedFirst = firstWord(raw);
-      const hint = $('#ajudanteHint');
-      if (!hint) return;
-      if (!typedFirst || dismissedSuggestions.has(typedKey)) { hint.innerHTML = ''; return; }
-      const candidatos = (store.state.oficiaisAjudantes || []).filter((n) => {
+      if (!typedFirst) return null;
+      const oficialMatches = (store.state.oficiaisAjudantes || []).filter((n) => {
         return firstWord(n) === typedFirst && normalizeName(n) !== typedKey;
       });
-      if (candidatos.length !== 1) { hint.innerHTML = ''; return; }
-      const full = candidatos[0];
+      if (oficialMatches.length === 1) return oficialMatches[0];
+      return findFuzzyName(raw);
+    }
+
+    function refreshHint(inputSel, hintSel) {
+      const raw = $(inputSel).value.trim();
+      const typedKey = normalizeName(raw);
+      const hint = $(hintSel);
+      if (!hint) return;
+      if (!typedKey || dismissedSuggestions.has(typedKey)) { hint.innerHTML = ''; return; }
+      const suggestion = pickSuggestion(raw);
+      if (!suggestion || normalizeName(suggestion) === typedKey) { hint.innerHTML = ''; return; }
       hint.innerHTML =
-        '<span>É o </span><strong>' + esc(full) + '</strong>?' +
+        '<span>É o </span><strong>' + esc(suggestion) + '</strong>?' +
         '<button type="button" class="btn small" data-role="ajudante-sim">Sim</button>' +
         '<button type="button" class="btn ghost small" data-role="ajudante-nao">Não</button>';
-      hint.dataset.full = full;
+      hint.dataset.full = suggestion;
       hint.dataset.typed = typedKey;
-    });
-    $('#ajudanteHint').addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-role]');
-      if (!btn) return;
-      const hint = $('#ajudanteHint');
-      if (btn.dataset.role === 'ajudante-sim' && hint.dataset.full) {
-        $('#nomeAjudante').value = hint.dataset.full;
-      } else if (btn.dataset.role === 'ajudante-nao' && hint.dataset.typed) {
-        dismissedSuggestions.add(hint.dataset.typed);
-      }
-      hint.innerHTML = '';
-    });
+      hint.dataset.target = inputSel;
+    }
+
+    function bindHint(inputSel, hintSel) {
+      $(inputSel).addEventListener('input', () => refreshHint(inputSel, hintSel));
+      $(hintSel).addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-role]');
+        if (!btn) return;
+        const hint = $(hintSel);
+        if (btn.dataset.role === 'ajudante-sim' && hint.dataset.full && hint.dataset.target) {
+          $(hint.dataset.target).value = hint.dataset.full;
+        } else if (btn.dataset.role === 'ajudante-nao' && hint.dataset.typed) {
+          dismissedSuggestions.add(hint.dataset.typed);
+        }
+        hint.innerHTML = '';
+      });
+    }
+
+    bindHint('#nomeAjudante', '#ajudanteHint');
+    bindHint('#ajudanteAssoc', '#ajudanteAssocHint');
 
     $('#resultado').addEventListener('click', (e) => {
       const chipBtn = e.target.closest('.chip-btn');
@@ -1757,6 +1830,10 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       store.save();
     });
 
+    $('#fundirOrigem').addEventListener('change', updateFundirPreview);
+    $('#fundirDestino').addEventListener('change', updateFundirPreview);
+    $('#btnFundirNomes').addEventListener('click', onFundirNomes);
+
     $('#btnApagarTudo').addEventListener('click', () => {
       if (confirm('Apagar TODOS os dados (registos, valores e lista de oficiais) da Base de Dados? Esta ação não pode ser anulada.')) {
         store.state = {
@@ -1785,6 +1862,62 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '</tr>'
     )).join('');
     renderOficiaisList();
+    renderFundirNomes();
+  }
+
+  function renderFundirNomes() {
+    const origemSel = $('#fundirOrigem');
+    const destinoSel = $('#fundirDestino');
+    if (!origemSel || !destinoSel) return;
+    const nomes = getHistoricalNames().sort((a, b) => a.localeCompare(b, 'pt'));
+    const opts = '<option value="">— escolher —</option>' +
+      nomes.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
+    const prevOrigem = origemSel.value;
+    const prevDestino = destinoSel.value;
+    origemSel.innerHTML = opts;
+    destinoSel.innerHTML = opts;
+    if (nomes.some(n => n === prevOrigem)) origemSel.value = prevOrigem;
+    if (nomes.some(n => n === prevDestino)) destinoSel.value = prevDestino;
+    updateFundirPreview();
+  }
+
+  function updateFundirPreview() {
+    const origem = $('#fundirOrigem').value;
+    const destino = $('#fundirDestino').value;
+    const preview = $('#fundirPreview');
+    if (!preview) return;
+    if (!origem || !destino) { preview.textContent = ''; return; }
+    if (normalizeName(origem) === normalizeName(destino)) {
+      preview.textContent = 'Escolhe nomes diferentes.';
+      return;
+    }
+    const count = countRegistosByName(origem);
+    preview.textContent = count + ' registo' + (count === 1 ? '' : 's') + ' de "' + origem + '" → "' + destino + '"';
+  }
+
+  function onFundirNomes() {
+    const origem = $('#fundirOrigem').value;
+    const destino = $('#fundirDestino').value;
+    if (!origem || !destino) { flash('#fundirMsg', 'err', 'Escolhe os dois nomes.'); return; }
+    if (normalizeName(origem) === normalizeName(destino)) { flash('#fundirMsg', 'err', 'Os nomes têm de ser diferentes.'); return; }
+    const count = countRegistosByName(origem);
+    if (count === 0) { flash('#fundirMsg', 'err', 'Não há registos com esse nome.'); return; }
+    if (!confirm('Vais unir ' + count + ' registo(s) de "' + origem + '" em "' + destino + '". Continuar?')) return;
+
+    const originKey = normalizeName(origem);
+    (store.state.registos || []).forEach(r => {
+      if (r.nome && normalizeName(r.nome) === originKey) r.nome = destino;
+      if (r.recebidoPor && normalizeName(r.recebidoPor) === originKey) r.recebidoPor = destino;
+      if (r.ajudanteAssoc && normalizeName(r.ajudanteAssoc) === originKey) r.ajudanteAssoc = destino;
+    });
+    if (Array.isArray(store.state.oficiaisAjudantes)) {
+      store.state.oficiaisAjudantes = store.state.oficiaisAjudantes.filter(n => normalizeName(n) !== originKey);
+    }
+    store.save();
+    renderFundirNomes();
+    renderPendentes();
+    renderRegistos();
+    flash('#fundirMsg', 'ok', count + ' registo(s) atualizado(s).');
   }
 
   function onGuardarValores() {
