@@ -171,7 +171,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         if (!r.status) {
           r.status = r.concluido ? 'concluido' : 'ativo';
         }
-        r.totalOriginal = getArredondamento(r.totalOriginal || 0).arredondado;
+        const planInicial = buildTripPlan(
+          r.saidaDataInicial || r.saidaData,
+          r.saidaHoraInicial || r.saidaHora,
+          r.regressoDataInicial || r.regressoData,
+          r.regressoHoraInicial || r.regressoHora,
+          r.incFimSemana
+        );
+        r.totalOriginal = computeTotals(planInicial, this.state.values, r.tipo).totalGeral;
         const p = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
         const totals = computeTotals(p, this.state.values, r.tipo);
         r.totalGeral = totals.totalGeral;
