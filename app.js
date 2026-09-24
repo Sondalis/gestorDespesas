@@ -139,6 +139,28 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           arredondamento: arr };
   }
 
+  function recalcRegistoTotals(registos, values) {
+    if (!Array.isArray(registos)) return;
+    registos.forEach(r => {
+      if (!r.status) {
+        r.status = r.concluido ? 'concluido' : 'ativo';
+      }
+      const planInicial = buildTripPlan(
+        r.saidaDataInicial || r.saidaData,
+        r.saidaHoraInicial || r.saidaHora,
+        r.regressoDataInicial || r.regressoData,
+        r.regressoHoraInicial || r.regressoHora,
+        r.incFimSemana
+      );
+      r.totalOriginal = computeTotals(planInicial, values, r.tipo).totalGeral;
+      const p = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
+      const totals = computeTotals(p, values, r.tipo);
+      r.totalGeral = totals.totalGeral;
+      r.valorAjuste = r.totalGeral - r.totalOriginal;
+    });
+  }
+  window.recalcRegistoTotals = recalcRegistoTotals;
+
   function expurgarRegistosExpirados(registos) {
     if (!registos || !Array.isArray(registos)) return [];
     const hoje = todayISO();
@@ -167,23 +189,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       };
       window.store = store;
 
-      this.state.registos.forEach(r => {
-        if (!r.status) {
-          r.status = r.concluido ? 'concluido' : 'ativo';
-        }
-        const planInicial = buildTripPlan(
-          r.saidaDataInicial || r.saidaData,
-          r.saidaHoraInicial || r.saidaHora,
-          r.regressoDataInicial || r.regressoData,
-          r.regressoHoraInicial || r.regressoHora,
-          r.incFimSemana
-        );
-        r.totalOriginal = computeTotals(planInicial, this.state.values, r.tipo).totalGeral;
-        const p = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
-        const totals = computeTotals(p, this.state.values, r.tipo);
-        r.totalGeral = totals.totalGeral;
-        r.valorAjuste = r.totalGeral - r.totalOriginal;
-      });
+      recalcRegistoTotals(this.state.registos, this.state.values);
     },
     save() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
@@ -2103,6 +2109,10 @@ async function safeInitSync() {
       if (data.registos.length < tamInicial) {
         set(stateRef, data).catch(e => console.error("Erro ao expurgar no Firebase:", e));
       }
+    }
+
+    if (typeof window.recalcRegistoTotals === 'function') {
+      window.recalcRegistoTotals(data.registos, data.values);
     }
 
     isRemoteUpdate = true;
