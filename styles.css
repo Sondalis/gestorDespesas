@@ -205,6 +205,14 @@
   .badge-oficial {
     background: var(--copper-tint); color: var(--copper); border: 1px solid #e6c3a6;
     border-radius: var(--radius); padding: 6px 12px; font-weight: 700; font-size: 13.5px;
+    align-self: center;
+  }
+  .adic-oficial-ref {
+    display: inline-block;
+    background: var(--copper-tint); color: var(--copper);
+    font-size: 12px; font-weight: 700;
+    padding: 2px 8px; border-radius: 4px;
+    white-space: nowrap;
   }
   .grand { margin-left: auto; text-align: right; }
   .grand .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }

@@ -129,7 +129,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       }
     }
     const totalBruto = totalBase + totalDelta;
-    const arr = getArredondamento(totalBruto);
+    // Arredondamento sempre sobre a base ajudante — é o valor que vai no mini-recibo.
+    // O adicional oficial (totalDelta) fica à parte, como referência.
+    const arr = getArredondamento(totalBase);
     return { totalBase,
           totalDelta,
           totalBruto,
@@ -496,12 +498,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     }).join('');
 
     const badge = form.tipo === 'oficial'
-      ? '<div class="badge-oficial money">+ ' + eur.format(totals.totalDelta) + ' (Oficial) = ' + eur.format(totals.totalBruto) + '</div>'
+      ? '<div class="badge-oficial money">+ ' + eur.format(totals.totalDelta) + ' Adicional Oficial</div>'
       : '';
 
     const meta = subMeta(form.obra, form.ajudanteAssoc);
 
-    const arr = totals.arredondamento || getArredondamento(totals.totalBruto);
+    const arr = totals.arredondamento || getArredondamento(totals.totalBase);
     const diffSign = arr.diff > 0 ? '+' : '';
 
     $('#resultado').innerHTML =
@@ -513,7 +515,6 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
             '<span class="k">Base (Ajudante)</span>' +
             '<span class="v money">' + eur.format(totals.totalBase) + '</span>' +
           '</div>' +
-          badge +
           '<div class="total-base">' +
             '<span class="k">Arredondamento</span>' +
             '<span class="v money">' + diffSign + arr.diff + '€</span>' +
@@ -522,6 +523,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
             '<span class="k">Total a entregar</span><br>' +
             '<span class="v money">' + eur.format(totals.totalGeral) + '</span>' +
           '</div>' +
+          badge +
         '</div>' +
         '<div class="breakdown">' + rows + '</div>' +
       '</div>';
@@ -920,7 +922,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const t = computeTotals(plan, store.state.values, r.tipo);
       const dias = plan.length;
       const diasComRefeicoes = plan.filter(d => d.meals.length).length;
-      const diferenca = t.totalGeral - r.totalOriginal;
+      const saidaInicial = r.saidaDataInicial || r.saidaData;
+      const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
+      const regressoInicial = r.regressoDataInicial || r.regressoData;
+      const horaRegressoInicial = r.regressoHoraInicial || r.regressoHora;
+      const datasAlteradas = (
+        r.saidaData !== saidaInicial || r.saidaHora !== horaSaidaInicial ||
+        dataRegresso !== regressoInicial || horaRegresso !== horaRegressoInicial
+      );
+      let diferenca = t.totalGeral - r.totalOriginal;
+      if (diferenca < 0 && !datasAlteradas) diferenca = 0;
 
       somaBase += t.totalBase;
       somaDelta += t.totalDelta;
@@ -1182,14 +1193,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     r.valorAjuste = diferenca;
 
-    const arrEfetivo = totalsEfetivos.arredondamento || getArredondamento(totalsEfetivos.totalBruto);
+    const arrEfetivo = totalsEfetivos.arredondamento || getArredondamento(totalsEfetivos.totalBase);
     const diffSign = arrEfetivo.diff > 0 ? '+' : '';
 
-    if (r.concluido) {
-      const valorTotalConcluido = (r.tipo === 'oficial')
-        ? eur.format(totalsEfetivos.totalBase) + ' + ' + eur.format(totalsEfetivos.totalDelta) + ' = ' + eur.format(r.totalGeral)
-        : eur.format(r.totalGeral);
+    const adicionalOficialRef = (r.tipo === 'oficial' && totalsEfetivos.totalDelta > 0)
+      ? '<span class="adic-oficial-ref">+ ' + eur.format(totalsEfetivos.totalDelta) + ' Adic. Oficial</span>'
+      : '';
 
+    if (r.concluido) {
       return (
         '<div class="rec concluido" data-rid="' + r.id + '" data-role="ver-detalhes" title="Ver detalhes da viagem" style="padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--sp-2);">' +
           '<div>' +
@@ -1199,7 +1210,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
             '<div class="ver-detalhe-hint">Ver detalhes</div>' +
           '</div>' +
           '<div style="display: flex; align-items: center; gap: var(--sp-4);">' +
-            '<span class="money" style="font-size: 15px; font-weight: 700; color: var(--petrol-deep);">' + valorTotalConcluido + '</span>' +
+            '<span class="money" style="font-size: 15px; font-weight: 700; color: var(--petrol-deep);">' + eur.format(r.totalGeral) + '</span>' +
+            adicionalOficialRef +
             '<button class="btn danger small" data-role="apagar-registo">Apagar</button>' +
           '</div>' +
         '</div>'
@@ -1214,18 +1226,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       valorAjusteClass = "devolver";
     }
 
-    const valorFinalDisplay = (r.tipo === 'oficial')
-      ? eur.format(totalsEfetivos.totalBase) + ' + ' + eur.format(totalsEfetivos.totalDelta) + ' = ' + eur.format(r.totalGeral)
-      : eur.format(r.totalGeral);
+    const valorFinalDisplay = eur.format(r.totalGeral) + adicionalOficialRef;
 
     const adjustHtml =
       '<div class="adjust-metrics">' +
-        (r.tipo === 'oficial' ?
-          '<div class="adjust-row"><span>Valor Base (Ajudante):</span><span class="money">' + eur.format(totalsEfetivos.totalBase) + '</span></div>' +
-          '<div class="adjust-row" style="color: var(--copper); font-weight: 600;"><span>Adicional Oficial:</span><span class="money">' + eur.format(totalsEfetivos.totalDelta) + '</span></div>'
+        '<div class="adjust-row"><span>Valor Base (Ajudante):</span><span class="money">' + eur.format(totalsEfetivos.totalBase) + '</span></div>' +
+        (r.tipo === 'oficial'
+          ? '<div class="adjust-row" style="color: var(--copper); font-weight: 600;"><span>Adicional Oficial (referência):</span><span class="money">+ ' + eur.format(totalsEfetivos.totalDelta) + '</span></div>'
           : ''
         ) +
-        '<div class="adjust-row"><span>Valor do Arredondamento (' + arrEfetivo.original + '€ -> ' + arrEfetivo.arredondado + '€):</span><span class="money">' + diffSign + arrEfetivo.diff + '€</span></div>' +
+        '<div class="adjust-row"><span>Valor do Arredondamento (' + arrEfetivo.original + '€ → ' + arrEfetivo.arredondado + '€):</span><span class="money">' + diffSign + arrEfetivo.diff + '€</span></div>' +
         '<div class="adjust-row"><span>Valor Entregue (Adiantado):</span><span class="money">' + eur.format(r.totalOriginal) + '</span></div>' +
         '<div class="adjust-row"><span>' + labelAjuste + '</span><span class="money ' + valorAjusteClass + '">' + eur.format(Math.abs(diferenca)) + '</span></div>' +
         '<div class="adjust-row highlight"><span>Valor Final Ajustado:</span><span class="money">' + valorFinalDisplay + '</span></div>' +
@@ -1437,9 +1447,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, horaRegresso, r.incFimSemana);
     const totals = computeTotals(plan, store.state.values, r.tipo);
-    const arr = totals.arredondamento || getArredondamento(totals.totalBruto);
+    const arr = totals.arredondamento || getArredondamento(totals.totalBase);
     const diffSign = arr.diff > 0 ? '+' : '';
-    const diferenca = totals.totalGeral - r.totalOriginal;
 
     const saidaInicial = r.saidaDataInicial || r.saidaData;
     const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
@@ -1449,6 +1458,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       r.saidaData !== saidaInicial || r.saidaHora !== horaSaidaInicial ||
       dataRegresso !== regressoInicial || horaRegresso !== horaRegressoInicial
     );
+
+    let diferenca = totals.totalGeral - r.totalOriginal;
+    if (diferenca < 0 && !houveAlteracaoDatas) diferenca = 0;
 
     /* --- Período --- */
     const periodoHtml =
@@ -1496,7 +1508,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '<h4>Valores</h4>' +
         detRow('Valor base (Ajudante)', '<span class="money">' + eur.format(totals.totalBase) + '</span>') +
         (r.tipo === 'oficial'
-          ? detRow('Adicional Oficial', '<span class="money" style="color:var(--copper)">' + eur.format(totals.totalDelta) + '</span>')
+          ? detRow('Adicional Oficial (referência)', '<span class="money" style="color:var(--copper)">+ ' + eur.format(totals.totalDelta) + '</span>')
           : '') +
         detRow('Arredondamento (' + arr.original + '€ → ' + arr.arredondado + '€)', '<span class="money">' + diffSign + arr.diff + '€</span>') +
         detRow('Valor entregue (adiantado)', '<span class="money">' + eur.format(r.totalOriginal) + '</span>') +
