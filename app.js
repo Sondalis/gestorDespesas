@@ -28,6 +28,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
   const RETURN_NOTHING_BEFORE = 6 * 60;
   const RETURN_LUNCH_FROM = 13 * 60 + 30;
+  const RETURN_DINNER_FROM = 21 * 60;
 
   const KIND_LABEL = {
     partida: 'Dia de partida', intermedio: 'Dia intermédio',
@@ -52,7 +53,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
   function returnDayMeals(min) {
     if (min < RETURN_NOTHING_BEFORE) return [];
     if (min < RETURN_LUNCH_FROM) return ['pa'];
-    return ['pa', 'alm'];
+    if (min < RETURN_DINNER_FROM) return ['pa', 'alm'];
+    return ['pa', 'alm', 'jan'];
   }
 
   function calendarDaysInclusive(startDate, endDate) {
