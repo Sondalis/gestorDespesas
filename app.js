@@ -28,7 +28,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
   const RETURN_NOTHING_BEFORE = 6 * 60;
   const RETURN_LUNCH_FROM = 13 * 60 + 30;
-  const RETURN_DINNER_FROM = 21 * 60;
+  const RETURN_DINNER_FROM = 23 * 60;
 
   const KIND_LABEL = {
     partida: 'Dia de partida', intermedio: 'Dia intermédio',
