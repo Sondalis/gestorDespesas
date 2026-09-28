@@ -782,10 +782,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       return a.nome.localeCompare(b.nome, 'pt');
     });
 
-    let totalGeral = 0;
     const secoes = gruposOrdenados.map(g => {
       g.linhas.sort((a, b) => a.r.saidaData.localeCompare(b.r.saidaData));
-      totalGeral += g.total;
       const linhasHtml = g.linhas.map((l, i) => (
         '<tr>' +
           '<td class="idx">Viagem ' + (i + 1) + '</td>' +
@@ -828,14 +826,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '  tfoot td { border-bottom: none; border-top: 2px solid #17211f; padding-top: 2mm; font-weight:700; }' +
       '  tfoot td.tot-lbl { text-align:right; text-transform: uppercase; letter-spacing:.06em; font-size: 10px; }' +
       '  tfoot td.tot { color:#0a3634; }' +
-      '  .grand { margin-top: 8mm; padding-top: 4mm; border-top: 3px solid #0a3634; display:flex; justify-content:space-between; font-size: 13px; font-weight:700; }' +
-      '  .grand .v { font-family: "Consolas", monospace; color:#b5622f; }' +
       '  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }' +
       '</style></head><body>' +
       '<header><h1>Adicional Oficial (concluídos)</h1>' +
       '<div class="meta">' + esc(periodoLabel) + ' &middot; impresso em ' + esc(fmtDate(todayISO())) + '</div></header>' +
       secoes +
-      '<div class="grand"><span>Total geral</span><span class="v">+ ' + esc(eur.format(totalGeral)) + '</span></div>' +
       '<script>window.onload = function() { setTimeout(function() { window.print(); }, 150); };<\/script>' +
       '</body></html>';
 
