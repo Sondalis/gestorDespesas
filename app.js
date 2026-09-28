@@ -746,6 +746,104 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     w.document.close();
   }
 
+  function imprimirAdicionalOficial() {
+    const elegiveis = store.state.registos.filter(r =>
+      r.tipo === 'oficial' &&
+      (r.faturaEntregue || r.concluido) &&
+      overlapsFilter(r, ui.filtroInicio, ui.filtroFim)
+    );
+
+    const linhas = elegiveis.map(r => {
+      const dataRegresso = r.regressoEfetivoData || r.regressoData;
+      const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
+      const totalDelta = computeTotals(plan, store.state.values, r.tipo).totalDelta;
+      return { r, dataRegresso, totalDelta };
+    }).filter(x => x.totalDelta > 0);
+
+    if (!linhas.length) {
+      alert('Não há registos de oficiais com despesas entregues no período seleccionado.');
+      return;
+    }
+
+    const grupos = {};
+    for (const l of linhas) {
+      const nomeKey = (l.r.nome || '').toUpperCase();
+      const mesKey = getMonthKey(l.r.saidaData);
+      const gKey = nomeKey + '|' + mesKey;
+      if (!grupos[gKey]) {
+        grupos[gKey] = { nome: l.r.nome, mesKey, linhas: [], total: 0 };
+      }
+      grupos[gKey].linhas.push(l);
+      grupos[gKey].total += l.totalDelta;
+    }
+
+    const gruposOrdenados = Object.values(grupos).sort((a, b) => {
+      if (a.mesKey !== b.mesKey) return b.mesKey.localeCompare(a.mesKey);
+      return a.nome.localeCompare(b.nome, 'pt');
+    });
+
+    let totalGeral = 0;
+    const secoes = gruposOrdenados.map(g => {
+      g.linhas.sort((a, b) => a.r.saidaData.localeCompare(b.r.saidaData));
+      totalGeral += g.total;
+      const linhasHtml = g.linhas.map((l, i) => (
+        '<tr>' +
+          '<td class="idx">Viagem ' + (i + 1) + '</td>' +
+          '<td>' + esc(fmtDate(l.r.saidaData)) + ' → ' + esc(fmtDate(l.dataRegresso)) + '</td>' +
+          '<td class="n">+ ' + esc(eur.format(l.totalDelta)) + '</td>' +
+        '</tr>'
+      )).join('');
+      return (
+        '<section class="grp">' +
+          '<h2>' + esc(g.nome) + ' <span class="mes">— ' + esc(getMonthLabel(g.mesKey)) + '</span></h2>' +
+          '<table>' +
+            '<tbody>' + linhasHtml + '</tbody>' +
+            '<tfoot><tr><td></td><td class="tot-lbl">Total</td><td class="n tot">+ ' + esc(eur.format(g.total)) + '</td></tr></tfoot>' +
+          '</table>' +
+        '</section>'
+      );
+    }).join('');
+
+    const periodoLabel = (ui.filtroInicio || ui.filtroFim)
+      ? (ui.filtroInicio ? fmtDate(ui.filtroInicio) : '…') + ' a ' + (ui.filtroFim ? fmtDate(ui.filtroFim) : '…')
+      : 'todos os períodos';
+
+    const html =
+      '<!DOCTYPE html><html lang="pt-PT"><head><meta charset="utf-8">' +
+      '<title>Adicional Oficial — ' + esc(periodoLabel) + '</title>' +
+      '<style>' +
+      '  @page { size: A4 portrait; margin: 14mm; }' +
+      '  * { box-sizing: border-box; }' +
+      '  body { font-family: "Segoe UI", system-ui, Arial, sans-serif; color: #17211f; margin: 0; }' +
+      '  header { display:flex; justify-content:space-between; align-items:baseline; border-bottom: 2px solid #0f4c4a; padding-bottom: 6mm; margin-bottom: 6mm; }' +
+      '  header h1 { margin:0; font-size: 18px; color:#0a3634; }' +
+      '  header .meta { font-size: 10px; color:#4a5854; }' +
+      '  .grp { margin-bottom: 6mm; page-break-inside: avoid; }' +
+      '  .grp h2 { font-size: 12px; margin: 0 0 2mm; text-transform: uppercase; letter-spacing:.06em; color:#0a3634; }' +
+      '  .grp h2 .mes { color:#4a5854; font-weight:500; text-transform: none; letter-spacing:0; }' +
+      '  table { width:100%; border-collapse: collapse; font-size: 11px; }' +
+      '  td { padding: 2mm 3mm; border-bottom: 1px solid #d8ddd6; }' +
+      '  td.idx { width: 22mm; color:#8a958f; font-size: 10px; }' +
+      '  td.n { text-align:right; font-family: "Consolas", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; width: 26mm; font-weight:600; color: #b5622f; }' +
+      '  tfoot td { border-bottom: none; border-top: 2px solid #17211f; padding-top: 2mm; font-weight:700; }' +
+      '  tfoot td.tot-lbl { text-align:right; text-transform: uppercase; letter-spacing:.06em; font-size: 10px; }' +
+      '  tfoot td.tot { color:#0a3634; }' +
+      '  .grand { margin-top: 8mm; padding-top: 4mm; border-top: 3px solid #0a3634; display:flex; justify-content:space-between; font-size: 13px; font-weight:700; }' +
+      '  .grand .v { font-family: "Consolas", monospace; color:#b5622f; }' +
+      '  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }' +
+      '</style></head><body>' +
+      '<header><h1>Adicional Oficial (concluídos)</h1>' +
+      '<div class="meta">' + esc(periodoLabel) + ' &middot; impresso em ' + esc(fmtDate(todayISO())) + '</div></header>' +
+      secoes +
+      '<div class="grand"><span>Total geral</span><span class="v">+ ' + esc(eur.format(totalGeral)) + '</span></div>' +
+      '<script>window.onload = function() { setTimeout(function() { window.print(); }, 150); };<\/script>' +
+      '</body></html>';
+
+    const w = window.open('', '_blank');
+    if (!w) { alert('Ativa os pop-ups para poder imprimir.'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
+
   function imprimirTodosPendentes() {
     const pendentes = store.state.registos.filter(r => r.status === 'pendente');
     if (!pendentes.length) {
@@ -1627,6 +1725,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       $$('#filtroTipoToggle button').forEach((b) => b.classList.toggle('active', b.dataset.filtroTipo === 'todos'));
       renderRegistos();
     });
+
+    $('#btnImprimirAdicionalOficial').addEventListener('click', imprimirAdicionalOficial);
 
     mainContainer.addEventListener('change', (e) => {
       if (e.target.dataset.role === 'inputNovoColaborador') return;
