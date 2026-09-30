@@ -888,7 +888,73 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
   }
 
   let selecaoNome = '';
-  let selecaoModo = 'report'; // 'report' = per-employee monthly report; 'mini-todos' = validar antes de imprimir todos os pendentes
+  let selecaoModo = 'report'; // 'report' | 'mini-todos' | 'mini-multi'
+
+  function abrirSelecaoMultiImpressao() {
+    selecaoNome = '';
+    selecaoModo = 'mini-multi';
+
+    const viagens = store.state.registos
+      .filter(r => r.status !== 'pendente' && overlapsFilter(r, ui.filtroInicio, ui.filtroFim))
+      .slice()
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt') || b.saidaData.localeCompare(a.saidaData));
+
+    if (!viagens.length) {
+      alert('Não há registos para imprimir no período seleccionado.');
+      return;
+    }
+
+    const grupos = {};
+    for (const r of viagens) {
+      const key = (r.nome || '').toUpperCase();
+      (grupos[key] = grupos[key] || { nome: r.nome, viagens: [] }).viagens.push(r);
+    }
+
+    const gruposHtml = Object.values(grupos).map(g => {
+      const linhas = g.viagens.map(r => {
+        const dataRegresso = r.regressoEfetivoData || r.regressoData;
+        const total = computeTotals(
+          buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana),
+          store.state.values, r.tipo
+        ).totalGeral;
+        const estado = r.concluido ? 'Concluída' : (r.faturaEntregue ? 'Despesa entregue' : 'Por entregar');
+        return (
+          '<label class="sel-row">' +
+            '<input type="checkbox" data-rid="' + r.id + '">' +
+            '<span class="sel-datas">' + esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegresso)) + '</span>' +
+            '<span class="sel-estado">' + estado + '</span>' +
+            '<span class="money">' + esc(eur.format(total)) + '</span>' +
+          '</label>'
+        );
+      }).join('');
+      return (
+        '<details class="sel-grp" data-user="' + esc(g.nome.toUpperCase()) + '">' +
+          '<summary><span class="sel-grp-nome">' + esc(g.nome) + '</span><span class="sel-grp-count">' + g.viagens.length + '</span></summary>' +
+          '<div class="sel-grp-body">' +
+            '<div class="sel-grp-toolbar">' +
+              '<button type="button" class="btn ghost small" data-role="sel-grp-todas">Selecionar todas</button>' +
+              '<button type="button" class="btn ghost small" data-role="sel-grp-nenhuma">Limpar</button>' +
+            '</div>' +
+            linhas +
+          '</div>' +
+        '</details>'
+      );
+    }).join('');
+
+    $('#selecaoTitulo').textContent = 'Selecionar registos para imprimir';
+    $('#selecaoBody').innerHTML =
+      '<div class="sel-search"><input type="search" id="selecaoSearch" placeholder="Pesquisar por nome…" autocomplete="off"></div>' +
+      '<div class="sel-toolbar">' +
+        '<button type="button" class="btn ghost small" data-role="sel-todas">Selecionar todos</button>' +
+        '<button type="button" class="btn ghost small" data-role="sel-nenhuma">Limpar seleção</button>' +
+      '</div>' +
+      gruposHtml;
+
+    atualizarContagemSelecao();
+    $('#selecaoBody').scrollTop = 0;
+    $('#selecaoOverlay').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
 
   function abrirSelecaoImpressao(nome, idsPreSelecionados) {
     selecaoNome = nome;
@@ -980,6 +1046,20 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         atualizarContagemSelecao();
         return;
       }
+      const grpTodas = e.target.closest('[data-role="sel-grp-todas"]');
+      if (grpTodas) {
+        const grp = grpTodas.closest('.sel-grp');
+        if (grp) grp.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+        atualizarContagemSelecao();
+        return;
+      }
+      const grpNenhuma = e.target.closest('[data-role="sel-grp-nenhuma"]');
+      if (grpNenhuma) {
+        const grp = grpNenhuma.closest('.sel-grp');
+        if (grp) grp.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+        atualizarContagemSelecao();
+        return;
+      }
       if (e.target.closest('#btnImprimirSelecao')) {
         const ids = idsSelecionados();
         if (!ids.length) return;
@@ -987,6 +1067,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         if (selecaoModo === 'mini-todos') {
           const regs = ids.map(id => store.findRegisto(id)).filter(Boolean);
           abrirImpressaoMiniRecibos(regs, 'Recibos Pendentes (' + regs.length + ')');
+        } else if (selecaoModo === 'mini-multi') {
+          const regs = ids.map(id => store.findRegisto(id)).filter(Boolean);
+          abrirImpressaoMiniRecibos(regs, 'Recibos (' + regs.length + ')');
         } else {
           imprimirViagensSelecionadas(selecaoNome, ids);
         }
@@ -995,6 +1078,15 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     ov.addEventListener('change', (e) => {
       if (e.target.matches('input[type="checkbox"]')) atualizarContagemSelecao();
+    });
+
+    ov.addEventListener('input', (e) => {
+      if (e.target.id !== 'selecaoSearch') return;
+      const q = normalizeName(e.target.value);
+      $$('#selecaoBody .sel-grp').forEach(grp => {
+        const nome = normalizeName(grp.dataset.user || '');
+        grp.hidden = q && !nome.includes(q);
+      });
     });
 
     document.addEventListener('keydown', (e) => {
@@ -1722,6 +1814,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     });
 
     $('#btnImprimirAdicionalOficial').addEventListener('click', imprimirAdicionalOficial);
+    $('#btnSelecionarImprimir').addEventListener('click', abrirSelecaoMultiImpressao);
 
     mainContainer.addEventListener('change', (e) => {
       if (e.target.dataset.role === 'inputNovoColaborador') return;

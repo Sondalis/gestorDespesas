@@ -410,6 +410,31 @@
   .sel-row .sel-estado { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
   .sel-row .money { font-weight: 700; color: var(--petrol-deep); }
 
+  .sel-search { margin-bottom: var(--sp-3); }
+  .sel-search input {
+    width: 100%; padding: 8px 12px; font-size: 14px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface);
+  }
+  .sel-search input:focus { outline: 2px solid var(--petrol); outline-offset: -1px; }
+
+  .sel-grp { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); margin-bottom: var(--sp-2); }
+  .sel-grp[hidden] { display: none; }
+  .sel-grp > summary {
+    list-style: none; cursor: pointer; padding: 8px 12px;
+    display: flex; align-items: center; gap: var(--sp-2); font-weight: 600; font-size: 13.5px;
+  }
+  .sel-grp > summary::-webkit-details-marker { display: none; }
+  .sel-grp > summary::before { content: "▸"; color: var(--ink-faint); font-size: 11px; transition: transform .15s; }
+  .sel-grp[open] > summary::before { transform: rotate(90deg); }
+  .sel-grp-nome { flex: 1; }
+  .sel-grp-count {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    background: var(--petrol-tint); color: var(--petrol);
+    padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700;
+  }
+  .sel-grp-body { padding: 0 12px 12px; }
+  .sel-grp-toolbar { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+
   /* Ações do grupo mensal */
   .month-summary .month-right { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
   .btn-print-mes { flex: 0 0 auto; }
