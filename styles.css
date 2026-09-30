@@ -210,14 +210,13 @@
   .ajuste-cell {
     display: inline-flex; align-items: center; gap: 6px;
   }
-  .rec-body input[type=number].ajuste-input,
   input[type=number].ajuste-input {
-    width: 74px !important;
-    height: 34.17px !important;
-    padding: 6px 10px !important;
-    font-size: 13.5px !important;
-    line-height: 1.5 !important;
-    box-sizing: border-box !important;
+    width: 74px;
+    height: 34.17px;
+    padding: 6px 10px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    box-sizing: border-box;
     text-align: right;
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
