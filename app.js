@@ -284,6 +284,23 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     return best;
   }
 
+  function datasIniciais(r, dataRegressoAtual, horaRegressoAtual) {
+    const saida = r.saidaDataInicial || r.saidaData;
+    const horaSaida = r.saidaHoraInicial || r.saidaHora;
+    const regresso = r.regressoDataInicial || r.regressoData;
+    const horaRegresso = r.regressoHoraInicial || r.regressoHora;
+    const alteradas = (
+      r.saidaData !== saida || r.saidaHora !== horaSaida ||
+      dataRegressoAtual !== regresso || horaRegressoAtual !== horaRegresso
+    );
+    return { saida, horaSaida, regresso, horaRegresso, alteradas };
+  }
+
+  function diferencaAjustada(totalGeral, totalOriginal, datasAlteradas) {
+    const raw = totalGeral - totalOriginal;
+    return (raw < 0 && !datasAlteradas) ? 0 : raw;
+  }
+
   function countRegistosByName(nome) {
     const key = normalizeName(nome);
     if (!key) return 0;
@@ -1122,16 +1139,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const t = computeTotals(plan, store.state.values, r.tipo);
       const dias = plan.length;
       const diasComRefeicoes = plan.filter(d => d.meals.length).length;
-      const saidaInicial = r.saidaDataInicial || r.saidaData;
-      const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
-      const regressoInicial = r.regressoDataInicial || r.regressoData;
-      const horaRegressoInicial = r.regressoHoraInicial || r.regressoHora;
-      const datasAlteradas = (
-        r.saidaData !== saidaInicial || r.saidaHora !== horaSaidaInicial ||
-        dataRegresso !== regressoInicial || horaRegresso !== horaRegressoInicial
-      );
-      let diferenca = t.totalGeral - r.totalOriginal;
-      if (diferenca < 0 && !datasAlteradas) diferenca = 0;
+      const iniciais = datasIniciais(r, dataRegresso, horaRegresso);
+      const diferenca = diferencaAjustada(t.totalGeral, r.totalOriginal, iniciais.alteradas);
 
       somaBase += t.totalBase;
       somaDelta += t.totalDelta;
@@ -1373,24 +1382,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const totalsEfetivos = computeTotals(planEfetivo, store.state.values, r.tipo);
 
     r.totalGeral = totalsEfetivos.totalGeral;
-    let diferenca = r.totalGeral - r.totalOriginal;
-
-    const saidaInicial = r.saidaDataInicial || r.saidaData;
-    const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
-    const regressoInicial = r.regressoDataInicial || r.regressoData;
-    const horaRegressoInicial = r.regressoHoraInicial || r.regressoHora;
-
-    const houveAlteracaoDatas = (
-      r.saidaData !== saidaInicial ||
-      r.saidaHora !== horaSaidaInicial ||
-      dataRegressoAtual !== regressoInicial ||
-      horaRegressoAtual !== horaRegressoInicial
-    );
-
-    if (diferenca < 0 && !houveAlteracaoDatas) {
-      diferenca = 0;
-    }
-
+    const iniciais = datasIniciais(r, dataRegressoAtual, horaRegressoAtual);
+    const diferenca = diferencaAjustada(r.totalGeral, r.totalOriginal, iniciais.alteradas);
     r.valorAjuste = diferenca;
 
     const arrEfetivo = totalsEfetivos.arredondamento || getArredondamento(totalsEfetivos.totalBase);
@@ -1650,17 +1643,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const arr = totals.arredondamento || getArredondamento(totals.totalBase);
     const diffSign = arr.diff > 0 ? '+' : '';
 
-    const saidaInicial = r.saidaDataInicial || r.saidaData;
-    const horaSaidaInicial = r.saidaHoraInicial || r.saidaHora;
-    const regressoInicial = r.regressoDataInicial || r.regressoData;
-    const horaRegressoInicial = r.regressoHoraInicial || r.regressoHora;
-    const houveAlteracaoDatas = (
-      r.saidaData !== saidaInicial || r.saidaHora !== horaSaidaInicial ||
-      dataRegresso !== regressoInicial || horaRegresso !== horaRegressoInicial
-    );
-
-    let diferenca = totals.totalGeral - r.totalOriginal;
-    if (diferenca < 0 && !houveAlteracaoDatas) diferenca = 0;
+    const iniciais = datasIniciais(r, dataRegresso, horaRegresso);
+    const diferenca = diferencaAjustada(totals.totalGeral, r.totalOriginal, iniciais.alteradas);
 
     /* --- Período --- */
     const periodoHtml =
@@ -1668,10 +1652,10 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         '<h4>Período da viagem</h4>' +
         detRow('Partida', esc(fmtDate(r.saidaData)) + ' &middot; ' + esc(r.saidaHora || '—')) +
         detRow('Regresso efetivo', esc(fmtDate(dataRegresso)) + ' &middot; ' + esc(horaRegresso || '—')) +
-        (houveAlteracaoDatas
+        (iniciais.alteradas
           ? detRow('Previsto inicialmente',
-              esc(fmtDate(saidaInicial)) + ' ' + esc(horaSaidaInicial || '') + ' → ' +
-              esc(fmtDate(regressoInicial)) + ' ' + esc(horaRegressoInicial || ''))
+              esc(fmtDate(iniciais.saida)) + ' ' + esc(iniciais.horaSaida || '') + ' → ' +
+              esc(fmtDate(iniciais.regresso)) + ' ' + esc(iniciais.horaRegresso || ''))
           : '') +
         detRow('Fins de semana incluídos', r.incFimSemana ? 'Sim' : 'Não') +
       '</div>';
