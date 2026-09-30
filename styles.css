@@ -211,7 +211,8 @@
     display: inline-flex; align-items: center; gap: 6px;
   }
   .ajuste-input {
-    width: 74px; padding: 6px 10px; font-size: 13.5px;
+    width: 74px; height: 34.17px; padding: 6px 10px; font-size: 13.5px;
+    box-sizing: border-box;
     text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums;
     color: var(--ink); background: var(--surface);
     border: 1px solid var(--line-strong); border-radius: var(--radius);
