@@ -211,9 +211,10 @@
     display: inline-flex; align-items: center; gap: 6px;
   }
   .ajuste-input {
-    width: 64px; padding: 4px 8px; font-size: 13.5px;
+    width: 74px; padding: 6px 10px; font-size: 13.5px;
     text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums;
-    border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+    color: var(--ink); background: var(--surface);
+    border: 1px solid var(--line-strong); border-radius: var(--radius);
     -moz-appearance: textfield;
   }
   .ajuste-input::-webkit-outer-spin-button,
