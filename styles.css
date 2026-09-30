@@ -207,6 +207,12 @@
     border-radius: var(--radius); padding: 6px 12px; font-weight: 700; font-size: 13.5px;
     align-self: center;
   }
+  .ajuste-input {
+    width: 70px; padding: 4px 6px; font-size: 13px;
+    text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums;
+    border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+  }
+  .ajuste-input:focus { outline: 2px solid var(--petrol); outline-offset: -1px; }
   .adic-oficial-ref {
     display: inline-block;
     background: var(--copper-tint); color: var(--copper);

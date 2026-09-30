@@ -154,14 +154,22 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         r.regressoHoraInicial || r.regressoHora,
         r.incFimSemana
       );
-      r.totalOriginal = computeTotals(planInicial, values, r.tipo).totalGeral;
+      const aj = Number(r.ajuste) || 0;
+      r.totalOriginal = computeTotals(planInicial, values, r.tipo).totalGeral + aj;
       const p = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
       const totals = computeTotals(p, values, r.tipo);
-      r.totalGeral = totals.totalGeral;
+      r.totalGeral = totals.totalGeral + aj;
       r.valorAjuste = r.totalGeral - r.totalOriginal;
     });
   }
   window.recalcRegistoTotals = recalcRegistoTotals;
+
+  function clampAjuste(v) {
+    const n = Number(v) || 0;
+    if (n > 5) return 5;
+    if (n < -5) return -5;
+    return n;
+  }
 
   function expurgarRegistosExpirados(registos) {
     if (!registos || !Array.isArray(registos)) return [];
@@ -668,9 +676,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const selectEntregue = rec.querySelector('[data-role="entreguePorSelectPendente"]');
       const inputRecebido = rec.querySelector('[data-role="recebidoPorPendente"]');
       const inputData = rec.querySelector('[data-role="dataEntregaDinheiroPendente"]');
+      const inputAjuste = rec.querySelector('[data-role="ajustePendente"]');
       if (selectEntregue) registo.entreguePor = selectEntregue.value;
       if (inputRecebido) registo.recebidoPor = inputRecebido.value.trim();
       if (inputData) registo.dataEntregaDinheiro = inputData.value;
+      if (inputAjuste) registo.ajuste = clampAjuste(parseFloat(inputAjuste.value));
     });
     store.save();
   }
@@ -693,7 +703,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const plan = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
       // Recibo assinado pelo trabalhador: mostra sempre o valor de ajudante,
       // mesmo quando o registo é de oficial (o adicional oficial é entregue à parte).
-      const valorTotal = computeTotals(plan, store.state.values, 'ajudante').totalGeral;
+      const valorTotal = computeTotals(plan, store.state.values, 'ajudante').totalGeral + (Number(r.ajuste) || 0);
 
       return (
         '<div class="mini">' +
@@ -878,7 +888,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const linhas = ordenados.map((r) => {
       const dataRegresso = r.regressoEfetivoData || r.regressoData;
       const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
-      const total = computeTotals(plan, store.state.values, 'ajudante').totalGeral;
+      const total = computeTotals(plan, store.state.values, 'ajudante').totalGeral + (Number(r.ajuste) || 0);
       return (
         '<label class="sel-row">' +
           '<input type="checkbox" data-rid="' + r.id + '" checked>' +
@@ -997,7 +1007,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const linhas = meses[mKey].map((r) => {
         const dataRegresso = r.regressoEfetivoData || r.regressoData;
         const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
-        const total = computeTotals(plan, store.state.values, r.tipo).totalGeral;
+        const total = computeTotals(plan, store.state.values, r.tipo).totalGeral + (Number(r.ajuste) || 0);
         const estado = r.concluido ? 'Concluída' : (r.faturaEntregue ? 'Despesa entregue' : 'Por entregar');
         return (
           '<label class="sel-row">' +
@@ -1137,14 +1147,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const horaRegresso = r.regressoEfetivoHora || r.regressoHora;
       const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, horaRegresso, r.incFimSemana);
       const t = computeTotals(plan, store.state.values, r.tipo);
+      const ajuste = Number(r.ajuste) || 0;
+      const totalGeralAjustado = t.totalGeral + ajuste;
       const dias = plan.length;
       const diasComRefeicoes = plan.filter(d => d.meals.length).length;
       const iniciais = datasIniciais(r, dataRegresso, horaRegresso);
-      const diferenca = diferencaAjustada(t.totalGeral, r.totalOriginal, iniciais.alteradas);
+      const diferenca = diferencaAjustada(totalGeralAjustado, r.totalOriginal, iniciais.alteradas);
 
       somaBase += t.totalBase;
       somaDelta += t.totalDelta;
-      somaTotal += t.totalGeral;
+      somaTotal += totalGeralAjustado;
       somaEntregue += r.totalOriginal;
 
       const estado = r.concluido ? 'Concluído' : (r.faturaEntregue ? 'Despesa entregue' : 'Por entregar');
@@ -1167,7 +1179,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           '<td class="c">' + dias + '<br><span class="ate">' + diasComRefeicoes + ' c/ ref.</span></td>' +
           '<td class="n">' + esc(eur.format(t.totalBase)) + '</td>' +
           (temOficial ? '<td class="n">' + esc(eur.format(t.totalDelta)) + '</td>' : '') +
-          '<td class="n forte">' + esc(eur.format(t.totalGeral)) + '</td>' +
+          '<td class="n forte">' + esc(eur.format(totalGeralAjustado)) + '</td>' +
           '<td class="c">' + estado + '</td>' +
         '</tr>' +
         '<tr class="sub"><td colspan="' + colSpan + '">' + detalhes.join(' &nbsp;·&nbsp; ') +
@@ -1296,7 +1308,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const dataRegresso = r.regressoEfetivoData || r.regressoData;
       const horaRegresso = r.regressoEfetivoHora || r.regressoHora;
       const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, horaRegresso, r.incFimSemana);
-      r.totalGeral = computeTotals(plan, store.state.values, r.tipo).totalGeral;
+      r.totalGeral = computeTotals(plan, store.state.values, r.tipo).totalGeral + (Number(r.ajuste) || 0);
     }
 
     const userGroups = {};
@@ -1327,15 +1339,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           .sort((a, b) => b.localeCompare(a))
           .map((mKey) => {
             const mList = monthGroups[mKey];
-            let mBase = 0, mDelta = 0;
+            let mBase = 0, mDelta = 0, totalComArredondamento = 0;
             for (const r of mList) {
               const plan = buildTripPlan(r.saidaData, r.saidaHora, r.regressoEfetivoData || r.regressoData, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
               const t = computeTotals(plan, store.state.values, r.tipo);
               mBase += t.totalBase;
               mDelta += t.totalDelta;
+              totalComArredondamento += t.totalGeral + (Number(r.ajuste) || 0);
             }
-            const mTotal = mBase + mDelta;
-            const totalComArredondamento = getArredondamento(mTotal).arredondado;
             const cards = mList.map(recCard).join('');
             const deltaBadge = mDelta > 0 ? ' | <span style="color: var(--copper); font-weight: 700;">Extra Oficial: +' + eur.format(mDelta) + '</span>' : '';
 
@@ -1381,7 +1392,8 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const planEfetivo = buildTripPlan(r.saidaData, r.saidaHora, dataRegressoAtual, horaRegressoAtual, r.incFimSemana);
     const totalsEfetivos = computeTotals(planEfetivo, store.state.values, r.tipo);
 
-    r.totalGeral = totalsEfetivos.totalGeral;
+    const ajuste = Number(r.ajuste) || 0;
+    r.totalGeral = totalsEfetivos.totalGeral + ajuste;
     const iniciais = datasIniciais(r, dataRegressoAtual, horaRegressoAtual);
     const diferenca = diferencaAjustada(r.totalGeral, r.totalOriginal, iniciais.alteradas);
     r.valorAjuste = diferenca;
@@ -1421,6 +1433,15 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     const valorFinalDisplay = eur.format(r.totalGeral) + adicionalOficialRef;
 
+    const ajusteManualRow = (r.status === 'pendente')
+      ? '<div class="adjust-row"><span>Ajuste manual (±5€):</span>' +
+          '<span><input type="number" class="ajuste-input" data-role="ajustePendente" min="-5" max="5" step="0.5" value="' + ajuste + '"> €</span>' +
+        '</div>'
+      : (ajuste !== 0
+          ? '<div class="adjust-row"><span>Ajuste manual:</span><span class="money">' + (ajuste > 0 ? '+ ' : '- ') + eur.format(Math.abs(ajuste)) + '</span></div>'
+          : ''
+        );
+
     const adjustHtml =
       '<div class="adjust-metrics">' +
         '<div class="adjust-row"><span>Valor Base (Ajudante):</span><span class="money">' + eur.format(totalsEfetivos.totalBase) + '</span></div>' +
@@ -1429,6 +1450,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           : ''
         ) +
         '<div class="adjust-row"><span>Valor do Arredondamento (' + arrEfetivo.original + '€ → ' + arrEfetivo.arredondado + '€):</span><span class="money">' + diffSign + arrEfetivo.diff + '€</span></div>' +
+        ajusteManualRow +
         '<div class="adjust-row"><span>Valor Entregue (Adiantado):</span><span class="money">' + eur.format(r.totalOriginal) + '</span></div>' +
         '<div class="adjust-row"><span>' + labelAjuste + '</span><span class="money ' + valorAjusteClass + '">' + eur.format(Math.abs(diferenca)) + '</span></div>' +
         '<div class="adjust-row highlight"><span>Valor Final Ajustado:</span><span class="money">' + valorFinalDisplay + '</span></div>' +
@@ -1640,11 +1662,13 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, horaRegresso, r.incFimSemana);
     const totals = computeTotals(plan, store.state.values, r.tipo);
+    const ajusteDet = Number(r.ajuste) || 0;
+    const totalGeralAjustadoDet = totals.totalGeral + ajusteDet;
     const arr = totals.arredondamento || getArredondamento(totals.totalBase);
     const diffSign = arr.diff > 0 ? '+' : '';
 
     const iniciais = datasIniciais(r, dataRegresso, horaRegresso);
-    const diferenca = diferencaAjustada(totals.totalGeral, r.totalOriginal, iniciais.alteradas);
+    const diferenca = diferencaAjustada(totalGeralAjustadoDet, r.totalOriginal, iniciais.alteradas);
 
     /* --- Período --- */
     const periodoHtml =
@@ -1695,9 +1719,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           ? detRow('Adicional Oficial (referência)', '<span class="money" style="color:var(--copper)">+ ' + eur.format(totals.totalDelta) + '</span>')
           : '') +
         detRow('Arredondamento (' + arr.original + '€ → ' + arr.arredondado + '€)', '<span class="money">' + diffSign + arr.diff + '€</span>') +
+        (ajusteDet !== 0
+          ? detRow('Ajuste manual', '<span class="money">' + (ajusteDet > 0 ? '+ ' : '- ') + eur.format(Math.abs(ajusteDet)) + '</span>')
+          : '') +
         detRow('Valor entregue (adiantado)', '<span class="money">' + eur.format(r.totalOriginal) + '</span>') +
         detRow(labelDiferenca, '<span class="money' + (diferenca < 0 ? ' devolver' : '') + '">' + eur.format(Math.abs(diferenca)) + '</span>') +
-        detRow('Valor final', '<span class="money">' + eur.format(totals.totalGeral) + '</span>', 'total') +
+        detRow('Valor final', '<span class="money">' + eur.format(totalGeralAjustadoDet) + '</span>', 'total') +
       '</div>';
 
     /* --- Entrega / conclusão --- */
@@ -1817,6 +1844,14 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       if (role === 'entreguePorSelectPendente') registo.entreguePor = e.target.value;
       else if (role === 'dataEntregaDinheiroPendente') registo.dataEntregaDinheiro = e.target.value;
       else if (role === 'recebidoPorPendente') registo.recebidoPor = e.target.value;
+      else if (role === 'ajustePendente') {
+        const v = clampAjuste(parseFloat(e.target.value));
+        registo.ajuste = v;
+        e.target.value = v;
+        store.save();
+        renderPendentes();
+        return;
+      }
       else if (role === 'observacoesPendente') registo.observacoes = e.target.value;
       else if (role === 'faturaEntregue') registo.faturaEntregue = e.target.checked;
       else if (role === 'faturaEntregueA') registo.faturaEntregueA = e.target.value;
@@ -1882,7 +1917,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
           const hReg = registo.regressoEfetivoHora || registo.regressoHora;
           const planEfetivo = buildTripPlan(registo.saidaData, registo.saidaHora, dReg, hReg, registo.incFimSemana);
           const totalsEfetivos = computeTotals(planEfetivo, store.state.values, registo.tipo);
-          registo.totalGeral = totalsEfetivos.totalGeral;
+          registo.totalGeral = totalsEfetivos.totalGeral + (Number(registo.ajuste) || 0);
 
           store.save();
           if (registo.status === 'pendente') renderPendentes();
