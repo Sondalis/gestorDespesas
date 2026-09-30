@@ -165,7 +165,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
   window.recalcRegistoTotals = recalcRegistoTotals;
 
   function clampAjuste(v) {
-    const n = Number(v) || 0;
+    const n = Math.trunc(Number(v) || 0);
     if (n > 5) return 5;
     if (n < -5) return -5;
     return n;
@@ -1433,12 +1433,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
 
     const valorFinalDisplay = eur.format(r.totalGeral) + adicionalOficialRef;
 
+    const ajusteInt = Math.trunc(ajuste);
     const ajusteManualRow = (r.status === 'pendente')
       ? '<div class="adjust-row"><span>Ajuste manual (±5€):</span>' +
-          '<span><input type="number" class="ajuste-input" data-role="ajustePendente" min="-5" max="5" step="0.5" value="' + ajuste + '"> €</span>' +
+          '<span class="ajuste-cell">' +
+            '<input type="number" class="ajuste-input" data-role="ajustePendente" min="-5" max="5" step="1" value="' + ajusteInt + '" inputmode="numeric">' +
+            '<span class="ajuste-suffix">€</span>' +
+          '</span>' +
         '</div>'
-      : (ajuste !== 0
-          ? '<div class="adjust-row"><span>Ajuste manual:</span><span class="money">' + (ajuste > 0 ? '+ ' : '- ') + eur.format(Math.abs(ajuste)) + '</span></div>'
+      : (ajusteInt !== 0
+          ? '<div class="adjust-row"><span>Ajuste manual:</span><span class="money">' + (ajusteInt > 0 ? '+ ' : '- ') + eur.format(Math.abs(ajusteInt)) + '</span></div>'
           : ''
         );
 

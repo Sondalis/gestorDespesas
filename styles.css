@@ -207,12 +207,22 @@
     border-radius: var(--radius); padding: 6px 12px; font-weight: 700; font-size: 13.5px;
     align-self: center;
   }
+  .ajuste-cell {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
   .ajuste-input {
-    width: 70px; padding: 4px 6px; font-size: 13px;
+    width: 64px; padding: 4px 8px; font-size: 13.5px;
     text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums;
     border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+    -moz-appearance: textfield;
   }
+  .ajuste-input::-webkit-outer-spin-button,
+  .ajuste-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .ajuste-input:focus { outline: 2px solid var(--petrol); outline-offset: -1px; }
+  .ajuste-suffix {
+    font-family: var(--mono); font-variant-numeric: tabular-nums;
+    color: var(--ink-soft); font-size: 13.5px; font-weight: 600;
+  }
   .adic-oficial-ref {
     display: inline-block;
     background: var(--copper-tint); color: var(--copper);
