@@ -334,10 +334,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     return (months[parseInt(m, 10) - 1] || '') + ' ' + y;
   }
-  function subMeta(obra, ajudante) {
+  function subMeta(obra, ajudante, elaboradoPor) {
     const bits = [];
     if (obra) bits.push('<span><span class="meta-k">Obra</span>' + esc(obra) + '</span>');
     if (ajudante) bits.push('<span><span class="meta-k">Ajudante</span>' + esc(ajudante) + '</span>');
+    if (elaboradoPor) bits.push('<span><span class="meta-k">Elaborado por</span>' + esc(elaboradoPor) + '</span>');
     return bits.join('');
   }
   function esc(s) {
@@ -398,6 +399,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       $('#fieldAjudante').style.display = ui.tipo === 'ajudante' ? '' : 'none';
       $('#fieldOficial').style.display = ui.tipo === 'oficial' ? '' : 'none';
       $('#fieldAjudanteAssoc').style.display = ui.tipo === 'oficial' ? '' : 'none';
+    });
+    $('#elaboradoPorSelect').addEventListener('change', (e) => {
+      const outro = e.target.value === 'Outro';
+      $('#fieldElaboradoPorOutro').hidden = !outro;
+      if (outro) $('#elaboradoPorOutro').focus();
     });
     $('#btnCalcular').addEventListener('click', onCalcular);
     $('#btnGuardarRegisto').addEventListener('click', onGuardarRegisto);
@@ -480,10 +486,16 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       regressoData: $('#regressoData').value,
       regressoHora: $('#regressoHora').value,
       entreguePor: $('#entreguePorSelect').value,
+      elaboradoPor: elaboradoPorValor(),
       dataEntregaDinheiro: $('#dataEntregaDinheiro').value,
       observacoes: $('#observacoes').value.trim(),
       incFimSemana: $('#incFimSemana').checked,
     };
+  }
+
+  function elaboradoPorValor() {
+    const v = $('#elaboradoPorSelect').value;
+    return v === 'Outro' ? $('#elaboradoPorOutro').value.trim() : v;
   }
 
   function validate(f) {
@@ -575,6 +587,9 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     $('#ajudanteAssoc').value = '';
     $('#obra').value = '';
     $('#entreguePorSelect').value = 'Pendente';
+    $('#elaboradoPorSelect').value = '';
+    $('#elaboradoPorOutro').value = '';
+    $('#fieldElaboradoPorOutro').hidden = true;
     $('#observacoes').value = '';
     $('#incFimSemana').checked = false;
 
@@ -593,6 +608,13 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     onCalcular();
     if (!ui.ultimoCalculo) return;
     const { form, totals } = ui.ultimoCalculo;
+
+    if (!form.elaboradoPor) {
+      $('#resultado').innerHTML =
+        '<div class="card"><div class="alert err">Indique quem elaborou o registo.</div></div>';
+      ($('#elaboradoPorSelect').value === 'Outro' ? $('#elaboradoPorOutro') : $('#elaboradoPorSelect')).focus();
+      return;
+    }
 
     const conflito = findOverlappingRegisto(form.nome, form.saidaData, form.saidaHora, form.regressoData, form.regressoHora, null);
     if (conflito) {
@@ -634,6 +656,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       valorAjuste: 0,
 
       entreguePor: form.entreguePor,
+      elaboradoPor: form.elaboradoPor,
       dataEntregaDinheiro: statusDestino === 'ativo' ? (form.dataEntregaDinheiro || form.saidaData || todayISO()) : '',
       recebidoPor: form.nome,
       observacoes: form.observacoes || '',
@@ -1527,7 +1550,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     const recHtml = (
       '<div class="rec" data-rid="' + r.id + '">' +
         pendenteHeaderHtml +
-        (subMeta(r.obra, r.ajudanteAssoc) ? '<div class="rec-sub">' + subMeta(r.obra, r.ajudanteAssoc) + '</div>' : '') +
+        (subMeta(r.obra, r.ajudanteAssoc, r.elaboradoPor) ? '<div class="rec-sub">' + subMeta(r.obra, r.ajudanteAssoc, r.elaboradoPor) + '</div>' : '') +
 
         '<div class="rec-body">' +
           '<div class="edit-colaborador-box" data-role="boxEditColaborador">' +
@@ -1736,6 +1759,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '<div class="det-block">' +
         '<h4>Entrega &amp; conclusão</h4>' +
         detRow('Entregue por', esc(r.entreguePor && r.entreguePor !== 'Pendente' ? r.entreguePor : '—')) +
+        detRow('Elaborado por', esc(r.elaboradoPor || '—')) +
         detRow('Recebido por', esc(r.recebidoPor || r.nome || '—')) +
         detRow('Data entrega dinheiro', esc(r.dataEntregaDinheiro ? fmtDate(r.dataEntregaDinheiro) : '—')) +
         detRow('Despesa entregue a', esc(r.faturaEntregueA || '—')) +

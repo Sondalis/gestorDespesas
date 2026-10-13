@@ -118,6 +118,7 @@
   }
 
   label.field { display: block; margin-bottom: var(--sp-4); }
+  label.field[hidden] { display: none; }
   label.field > span {
     display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft);
     letter-spacing: .06em; text-transform: uppercase; margin-bottom: var(--sp-2);

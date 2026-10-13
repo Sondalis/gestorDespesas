@@ -80,6 +80,22 @@
 
       <div class="grid-2">
         <label class="field">
+          <span>Elaborado por</span>
+          <select id="elaboradoPorSelect" required>
+            <option value="" selected disabled>Selecionar…</option>
+            <option value="Carla">Carla</option>
+            <option value="Inês">Inês</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </label>
+        <label class="field" id="fieldElaboradoPorOutro" hidden>
+          <span>Outro — nome</span>
+          <input type="text" id="elaboradoPorOutro" placeholder="Escrever nome">
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <label class="field">
           <span>Entregue Por</span>
           <select id="entreguePorSelect">
             <option value="Carla">Carla</option>
