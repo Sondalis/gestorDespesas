@@ -739,6 +739,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
             '<div class="mini-row"><span>Volta</span><span>' + esc(dataVolta) + '</span></div>' +
             '<div class="mini-row"><span>Recebimento</span><span>' + esc(dataRecebimento) + '</span></div>' +
             '<div class="mini-row"><span>Entregue por</span><span>' + esc(entreguePor) + '</span></div>' +
+            '<div class="mini-row"><span>Elaborado por</span><span>' + esc(r.elaboradoPor || '—') + '</span></div>' +
           '</div>' +
           '<div class="mini-valor"><span>Valor</span><span class="v">' + esc(eur.format(valorTotal)) + '</span></div>' +
           '<div class="mini-obs">' +
@@ -913,7 +914,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const plan = buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana);
       const total = computeTotals(plan, store.state.values, 'ajudante').totalGeral + (Number(r.ajuste) || 0);
       return (
-        '<label class="sel-row">' +
+        '<label class="sel-row" data-elab="' + esc(r.elaboradoPor || '') + '">' +
           '<input type="checkbox" data-rid="' + r.id + '" checked>' +
           '<span class="sel-datas"><strong>' + esc(r.nome) + '</strong> — ' + esc(fmtDate(r.saidaData)) + ' → ' + esc(fmtDate(dataRegresso)) + '</span>' +
           '<span class="sel-estado">' + esc(r.entreguePor && r.entreguePor !== 'Pendente' ? r.entreguePor : '—') + '</span>' +
@@ -927,6 +928,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '<div class="sel-toolbar">' +
         '<button class="btn ghost small" data-role="sel-todas">Selecionar todos</button>' +
         '<button class="btn ghost small" data-role="sel-nenhuma">Limpar seleção</button>' +
+        elabFiltroHtml(ordenados) +
       '</div>' +
       '<div class="sel-mes">Confirme quais recibos quer imprimir</div>' +
       linhas;
@@ -965,11 +967,11 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         const dataRegresso = r.regressoEfetivoData || r.regressoData;
         const total = computeTotals(
           buildTripPlan(r.saidaData, r.saidaHora, dataRegresso, r.regressoEfetivoHora || r.regressoHora, r.incFimSemana),
-          store.state.values, r.tipo
-        ).totalGeral;
+          store.state.values, 'ajudante'
+        ).totalGeral + (Number(r.ajuste) || 0);
         const estado = r.concluido ? 'Concluída' : (r.faturaEntregue ? 'Despesa entregue' : 'Por entregar');
         return (
-          '<label class="sel-row">' +
+          '<label class="sel-row" data-elab="' + esc(r.elaboradoPor || '') + '">' +
             '<input type="checkbox" data-rid="' + r.id + '">' +
             '<span class="sel-datas">' + esc(fmtDate(r.saidaData)) + ' — ' + esc(fmtDate(dataRegresso)) + '</span>' +
             '<span class="sel-estado">' + estado + '</span>' +
@@ -997,6 +999,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       '<div class="sel-toolbar">' +
         '<button type="button" class="btn ghost small" data-role="sel-todas">Selecionar todos</button>' +
         '<button type="button" class="btn ghost small" data-role="sel-nenhuma">Limpar seleção</button>' +
+        elabFiltroHtml(viagens) +
       '</div>' +
       gruposHtml;
 
@@ -1069,9 +1072,38 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     return $$('#selecaoBody input[type="checkbox"]:checked').map(cb => cb.dataset.rid);
   }
 
+  function elabFiltroHtml(regs) {
+    const nomes = [...new Set(regs.map(r => r.elaboradoPor).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'pt'));
+    if (!nomes.length) return '';
+    return '<select id="selecaoElab" aria-label="Filtrar por elaborado por">' +
+      '<option value="">Elaborado por: todos</option>' +
+      nomes.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') +
+    '</select>';
+  }
+
+  function aplicarFiltrosSelecao() {
+    const elab = ($('#selecaoElab') || {}).value || '';
+    const q = normalizeName(($('#selecaoSearch') || {}).value);
+    $$('#selecaoBody .sel-row').forEach(row => {
+      const oculto = !!elab && row.dataset.elab !== elab;
+      row.hidden = oculto;
+      if (oculto) row.querySelector('input').checked = false;
+    });
+    $$('#selecaoBody .sel-grp').forEach(grp => {
+      const semNome = q && !normalizeName(grp.dataset.user).includes(q);
+      grp.hidden = semNome || !grp.querySelector('.sel-row:not([hidden])');
+    });
+    atualizarContagemSelecao();
+  }
+
+  function cbsVisiveis(raiz) {
+    return Array.from(raiz.querySelectorAll('.sel-row:not([hidden]) input[type="checkbox"]'));
+  }
+
   function atualizarContagemSelecao() {
     const n = idsSelecionados().length;
-    const total = $$('#selecaoBody input[type="checkbox"]').length;
+    const total = $$('#selecaoBody .sel-row:not([hidden]) input[type="checkbox"]').length;
     $('#selecaoContagem').textContent = n + ' de ' + total + ' viagem(ns) selecionada(s)';
     $('#btnImprimirSelecao').disabled = (n === 0);
   }
@@ -1087,7 +1119,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
         return;
       }
       if (e.target.closest('[data-role="sel-todas"]')) {
-        $$('#selecaoBody input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+        cbsVisiveis($('#selecaoBody')).forEach(cb => { cb.checked = true; });
         atualizarContagemSelecao();
         return;
       }
@@ -1099,7 +1131,7 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
       const grpTodas = e.target.closest('[data-role="sel-grp-todas"]');
       if (grpTodas) {
         const grp = grpTodas.closest('.sel-grp');
-        if (grp) grp.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = true; });
+        if (grp) cbsVisiveis(grp).forEach(cb => { cb.checked = true; });
         atualizarContagemSelecao();
         return;
       }
@@ -1127,16 +1159,12 @@ const STORAGE_KEY = 'sondalis_diarias_v1';
     });
 
     ov.addEventListener('change', (e) => {
-      if (e.target.matches('input[type="checkbox"]')) atualizarContagemSelecao();
+      if (e.target.id === 'selecaoElab') aplicarFiltrosSelecao();
+      else if (e.target.matches('input[type="checkbox"]')) atualizarContagemSelecao();
     });
 
     ov.addEventListener('input', (e) => {
-      if (e.target.id !== 'selecaoSearch') return;
-      const q = normalizeName(e.target.value);
-      $$('#selecaoBody .sel-grp').forEach(grp => {
-        const nome = normalizeName(grp.dataset.user || '');
-        grp.hidden = q && !nome.includes(q);
-      });
+      if (e.target.id === 'selecaoSearch') aplicarFiltrosSelecao();
     });
 
     document.addEventListener('keydown', (e) => {

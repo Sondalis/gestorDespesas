@@ -433,6 +433,8 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer;
   }
   .sel-row:hover { border-color: var(--petrol); background: var(--surface-2); }
+  .sel-row[hidden] { display: none; }
+  .sel-toolbar select { width: auto; margin-left: auto; padding: 6px 10px; font-size: 13px; }
   .sel-row input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--petrol); flex: 0 0 auto; cursor: pointer; }
   .sel-row .sel-datas { flex: 1; font-weight: 600; font-size: 13.5px; }
   .sel-row .sel-estado { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
